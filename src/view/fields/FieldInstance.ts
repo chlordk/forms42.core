@@ -30,8 +30,8 @@ import { FieldProperties } from "./FieldProperties.js";
 import { Properties } from "../../application/Properties.js";
 import { FieldFeatureFactory } from "../FieldFeatureFactory.js";
 import { FieldEventHandler } from "./interfaces/FieldEventHandler.js";
-import { BrowserEvent, BrowserEvent as Event} from "../BrowserEvent.js";
 import { FieldImplementation, FieldState } from "./interfaces/FieldImplementation.js";
+import { BrowserEvent, BrowserEvent as Event} from "../../control/events/BrowserEvent.js";
 
 
 export class FieldInstance implements FieldEventHandler
@@ -88,6 +88,7 @@ export class FieldInstance implements FieldEventHandler
 		let flag:boolean = query.toLowerCase() == "true";
 		this.qbeproperties$ = FieldFeatureFactory.clone(this.properties$);
 
+		this.qbeproperties$.enabled = flag;
 		this.qbeproperties$.required = false;
 		this.qbeproperties$.readonly = !flag;
 
@@ -336,22 +337,18 @@ export class FieldInstance implements FieldEventHandler
 
 		if (focus != inst)
 		{
-			setTimeout(() =>
+			let event:BrowserEvent = BrowserEvent.get();
+
+			if (!events)
+				this.ignore = "focus";
+
+			inst.focus();
+
+			if (events)
 			{
-				let event:BrowserEvent = BrowserEvent.get();
-
-				if (!events)
-					this.ignore = "focus";
-
-				inst.focus();
-
-				if (events)
-				{
-					event.setFocusEvent();
-					this.field.handleEvent(this,event);
-				}
-
-			},10);
+				event.setFocusEvent();
+				this.field.handleEvent(this,event);
+			}
 		}
 	}
 

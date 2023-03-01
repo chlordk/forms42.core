@@ -86,6 +86,7 @@ export class FieldFeatureFactory
 	public static copyBasic(exist:BasicProperties, props:BasicProperties) : void
 	{
 		props.tag = exist.tag;
+		props["row$"] = exist.row;
 		props.value = exist.value;
 		props.mapper = exist.mapper;
 		props.hidden = exist.hidden;
@@ -171,10 +172,10 @@ export class FieldFeatureFactory
 				props.setAttribute(name,tag.getAttribute(name));
 		});
 
-		if (props.getAttributes().has("date"))
+		if (props.getAttributes().has("date") && !props.getAttributes().has("size"))
 			props.setAttribute("size",Properties.DateFormat.length);
 
-		if (props.getAttributes().has("datetime"))
+		if (props.getAttributes().has("datetime") && !props.getAttributes().has("size"))
 			props.setAttribute("size",(Properties.DateFormat+Properties.TimeFormat).length);
 
 		return(props);
@@ -243,8 +244,7 @@ export class FieldFeatureFactory
 
 		if (inst.field.row.status == Status.delete)
 		{
-			if (props.enabled && !props.readonly)
-				tag.setAttribute(Properties.RecordModeAttr,"deleted");
+			tag.setAttribute(Properties.RecordModeAttr,"deleted");
 		}
 
 		if (inst.field.row.status == Status.qbe)

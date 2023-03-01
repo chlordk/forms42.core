@@ -37,6 +37,7 @@ import { TriggerFunction } from '../public/TriggerFunction.js';
 import { EventFilter } from '../control/events/EventFilter.js';
 import { KeyMap, KeyMapping } from '../control/events/KeyMap.js';
 import { ComponentFactory } from './interfaces/ComponentFactory.js';
+import { DatabaseConnection } from '../public/DatabaseConnection.js';
 import { FormEvent, FormEvents } from '../control/events/FormEvents.js';
 import { ApplicationHandler } from '../control/events/ApplicationHandler.js';
 
@@ -70,6 +71,11 @@ export class FormsModule
 		this.root$ = root;
 	}
 
+	public getJSEvent() : any
+	{
+		return(Framework.getEvent());
+	}
+
 	public mapComponent(clazz:Class<any>, path?:string) : void
 	{
 		if (clazz == null)
@@ -80,7 +86,7 @@ export class FormsModule
 
 		path = path.toLowerCase();
 		Components.classmap.set(path,clazz);
-		Components.classurl.set(clazz.name,path);
+		Components.classurl.set(clazz.name.toLowerCase(),path);
 	}
 
 	public static getFormPath(clazz:Class<any>|string) : string
@@ -147,14 +153,20 @@ export class FormsModule
 		return(ApplicationHandler.instance.keyhandler(key));
 	}
 
-	public async save() : Promise<boolean>
+	public hasTransactions(connection?:DatabaseConnection) : boolean
 	{
-		return(FormBacking.save());
+		return(FormBacking.hasTransactions(connection["conn$"]));
 	}
 
-	public async undo() : Promise<boolean>
+
+	public async commit() : Promise<boolean>
 	{
-		return(FormBacking.undo());
+		return(FormBacking.commit());
+	}
+
+	public async rollback() : Promise<boolean>
+	{
+		return(FormBacking.rollback());
 	}
 
 	public message(msg:string, title?:string) : void
@@ -195,10 +207,12 @@ export class FormsModule
 		let instance:Form = await factory.createForm(form,parameters);
 		await FormEvents.raise(FormEvent.FormEvent(EventType.onNewForm,instance));
 
-		instance.canvas = canvas;
 		canvas.setComponent(instance);
 		container.appendChild(canvas.getView());
 
+		FormBacking.setCurrentForm(instance);
+
+		FormBacking.getViewForm(instance).canvas = canvas;
 		let mform:ModelForm = FormBacking.getModelForm(instance);
 		await mform.wait4EventTransaction(EventType.PostViewInit,null);
 

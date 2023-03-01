@@ -23,12 +23,12 @@ import { Row } from "../Row.js";
 import { Form } from "../Form.js";
 import { Block } from "../Block.js";
 import { EventStack } from "./EventStack.js";
-import { BrowserEvent} from "../BrowserEvent.js";
 import { Input } from "./implementations/Input.js";
 import { FieldInstance } from "./FieldInstance.js";
 import { Form as Interface } from "../../public/Form.js";
 import { Block as ModelBlock } from "../../model/Block.js";
 import { FormBacking } from "../../application/FormBacking.js";
+import { BrowserEvent} from "../../control/events/BrowserEvent.js";
 import { KeyMap, KeyMapping } from "../../control/events/KeyMap.js";
 import { FlightRecorder } from "../../application/FlightRecorder.js";
 import { MouseMap, MouseMapParser} from "../../control/events/MouseMap.js";
@@ -155,6 +155,12 @@ export class Field
 		this.dirty = false;
 		this.value$ = null;
 		this.instances$.forEach((inst) => {inst.clear()});
+	}
+
+	public setInstanceValidity(flag:boolean) : void
+	{
+		this.valid = flag;
+		this.instances$.forEach((inst) => {inst.valid = flag});
 	}
 
 	public addInstance(instance:FieldInstance) : void
@@ -399,7 +405,6 @@ export class Field
 			this.value$ = value;
 			this.validated = true;
 
-			await this.block.postValidateField(inst);
 			return(true);
 		}
 	}

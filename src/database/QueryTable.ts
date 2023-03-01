@@ -83,7 +83,7 @@ export class QueryTable extends SQLSource implements DataSource
 
 	public clear() : void
 	{
-		if (this.cursor$)
+		if (this.cursor$ && !this.cursor$.eof)
 			this.conn$.close(this.cursor$);
 	}
 
@@ -160,6 +160,11 @@ export class QueryTable extends SQLSource implements DataSource
 
 		this.columns$ = cols;
 		return(this);
+	}
+
+	public getFilters() : FilterStructure
+	{
+		return(this.limit$);
 	}
 
 	public addFilter(filter:Filter | FilterStructure) : QueryTable
@@ -346,7 +351,6 @@ export class QueryTable extends SQLSource implements DataSource
 			this.conn$.close(this.cursor$);
 
 		this.cursor$ = new Cursor();
-		this.cursor$.name = "select"+(new Date().getTime());
 	}
 
 	private async filter(records:Record[]) : Promise<Record[]>
@@ -369,10 +373,11 @@ export class QueryTable extends SQLSource implements DataSource
 
 	private async describe() : Promise<boolean>
 	{
-		let sql:SQLRest = new SQLRest();
 		if (this.described$) return(true);
 
-		sql.stmt += this.sql$ + " and 1 = 2";
+		let stmt:string = this.sql$ + " and 1 = 2";
+		let sql:SQLRest = SQLRestBuilder.finish(stmt,null,this.bindings$,null);
+
 		let response:any = await this.conn$.select(sql,null,1,true);
 
 		if (!response.success)
@@ -404,7 +409,7 @@ export class QueryTable extends SQLSource implements DataSource
 		{
 			let col:string = b.column?.toLowerCase();
 			let t:DataType = this.datatypes$.get(col);
-			if (t != null) b.type = DataType[t];
+			if (!b.forceDataType && t != null) b.type = DataType[t];
 		})
 	}
 

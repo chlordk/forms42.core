@@ -22,22 +22,23 @@
 import { Status } from './Row.js';
 import { Block } from './Block.js';
 import { FieldDrag } from './FieldDrag.js';
-import { Record } from '../model/Record.js';
 import { Alert } from '../application/Alert.js';
 import { DataType } from './fields/DataType.js';
-import { BrowserEvent } from './BrowserEvent.js';
 import { Classes } from '../internal/Classes.js';
 import { Form as ModelForm } from '../model/Form.js';
 import { Logger, Type } from '../application/Logger.js';
 import { Block as ModelBlock } from '../model/Block.js';
 import { ListOfValues } from '../public/ListOfValues.js';
+import { Record, RecordState } from '../model/Record.js';
 import { Form as InterfaceForm } from '../public/Form.js';
 import { FieldInstance } from './fields/FieldInstance.js';
 import { EventType } from '../control/events/EventType.js';
 import { FormBacking } from '../application/FormBacking.js';
 import { FormsModule } from '../application/FormsModule.js';
 import { DateConstraint } from '../public/DateConstraint.js';
+import { Canvas } from '../application/interfaces/Canvas.js';
 import { FieldProperties } from '../public/FieldProperties.js';
+import { BrowserEvent } from '../control/events/BrowserEvent.js';
 import { KeyMap, KeyMapping } from '../control/events/KeyMap.js';
 import { FlightRecorder } from '../application/FlightRecorder.js';
 import { RowIndicator } from '../application/tags/RowIndicator.js';
@@ -53,6 +54,7 @@ export class Form implements EventListenerObject
 		return(FormBacking.getCurrentViewForm());
 	}
 
+	private canvas$:Canvas = null;
 	private modfrm$:ModelForm = null;
 	private parent$:InterfaceForm = null;
 	private curinst$:FieldInstance = null;
@@ -76,6 +78,17 @@ export class Form implements EventListenerObject
 	public get parent() : InterfaceForm
 	{
 		return(this.parent$);
+	}
+
+	public get canvas() : Canvas
+	{
+		return(this.canvas$);
+	}
+
+	public set canvas(canvas:Canvas)
+	{
+		this.canvas$ = canvas;
+		this.canvas.getContent()?.addEventListener("focus",this);
 	}
 
 	public get model() : ModelForm
@@ -165,6 +178,14 @@ export class Form implements EventListenerObject
 		fltindicators.push(ind);
 	}
 
+	public blur(ignore?:boolean) : void
+	{
+		if (ignore && this.curinst$)
+			this.curinst$.ignore = "blur";
+
+		this.curinst$?.blur();
+	}
+
 	public focus() : void
 	{
 		if (this.curinst$)
@@ -217,10 +238,21 @@ export class Form implements EventListenerObject
 		return(true);
 	}
 
+	public async onCanvasFocus() : Promise<boolean>
+	{
+		if (Form.current() && Form.current() != this)
+		{
+			this.canvas.activate();
+			FormBacking.setCurrentForm(null);
+		}
+		return(true);
+	}
+
 	public async enter(inst:FieldInstance) : Promise<boolean>
 	{
 		let preform:Form = null;
 		let nxtblock:Block = inst.field.block;
+		let visited:boolean = nxtblock.visited;
 		let recoffset:number = nxtblock.offset(inst);
 		let preblock:Block = this.curinst$?.field.block;
 
@@ -228,15 +260,16 @@ export class Form implements EventListenerObject
 			Go to form
 		 **********************************************************************/
 
-		if (this != Form.current())
+		// Check if 'I' have been closed
+		let backing:FormBacking = FormBacking.getBacking(this.parent);
+
+		if (backing && Form.current() && this != Form.current())
 		{
 			// When modal call, allow leaving former form in any state
 
-			let backing:FormBacking = FormBacking.getBacking(this.parent);
-
 			if (backing == null)
 			{
-				Alert.fatal("Cannot find backing bean for '"+this.name+"'. Current form '"+Form.current?.name+"'","Enter Form");
+				Alert.fatal("Cannot find backing bean for '"+this.name+"'. Current form '"+Form.current()?.name+"'","Enter Form");
 				return(false);
 			}
 
@@ -352,16 +385,26 @@ export class Form implements EventListenerObject
 		}
 
 		this.curinst$ = inst;
-		inst.field.block.current = inst;
+		nxtblock.current = inst;
 		FormBacking.setCurrentForm(this);
 		nxtblock.setCurrentRow(inst.row,true);
 
-		if (preform)
+
+		let onrec:boolean = true;
+		if (preform) this.parent.canvas.activate();
+		let rec:Record = nxtblock.model.getRecord();
+
+		if (rec == null) onrec = false;
+		if (onrec && rec.state == RecordState.Deleted) onrec = false;
+		if (onrec && rec.state == RecordState.QueryFilter) onrec = false;
+		if (onrec && visited && (nxtblock == preblock && recoffset == 0)) onrec = false;
+
+		if (onrec)
 		{
-			// Successfully navigated from preform to this form
-			if (!this.model.wait4EventTransaction(EventType.PostFormFocus,null)) return(false);
-			let success:boolean = await this.fireFormEvent(EventType.PostFormFocus,this.parent);
-			return(success);
+			if (rec.state == RecordState.New)
+				await this.onNewRecord(inst.field.block);
+
+			await this.onRecord(inst.field.block);
 		}
 
 		return(true);
@@ -402,11 +445,17 @@ export class Form implements EventListenerObject
 		return(success);
 	}
 
-	public async onNewRecord(block:Block, offset:number) : Promise<boolean>
+	public async onRecord(block:Block) : Promise<boolean>
 	{
-		if (!await this.setEventTransaction(EventType.OnNewRecord,block,offset)) return(false);
+		if (!await this.model.wait4EventTransaction(EventType.OnRecord,null)) return(false);
+		let success:boolean = await this.fireBlockEvent(EventType.OnRecord,block.name);
+		return(success);
+	}
+
+	public async onNewRecord(block:Block) : Promise<boolean>
+	{
+		if (!await this.model.wait4EventTransaction(EventType.OnNewRecord,null)) return(false);
 		let success:boolean = await this.fireBlockEvent(EventType.OnNewRecord,block.name);
-		block.model.endEventTransaction(EventType.OnNewRecord,success);
 		return(success);
 	}
 
@@ -590,6 +639,8 @@ export class Form implements EventListenerObject
 					return(true);
 
 				success = await block.validateRow();
+				if (success) success = await block.model.flush();
+
 				return(success);
 			}
 
@@ -615,7 +666,6 @@ export class Form implements EventListenerObject
 			{
 				if (qmode) return(true);
 				success = await this.model.enterQuery(inst.field.block.model);
-				if (success) block.findFirstEditable(block.model.qberec)?.focus();
 				return(success);
 			}
 
@@ -787,7 +837,7 @@ export class Form implements EventListenerObject
 		return(false);
 	}
 
-	public async showListOfValues(block:string, field:string) : Promise<boolean>
+	public async showListOfValues(block:string, field:string, force?:boolean) : Promise<boolean>
 	{
 		let params:Map<string,any> = new Map<string,any>();
 		let backing:FormBacking = FormBacking.getBacking(this.parent);
@@ -795,11 +845,19 @@ export class Form implements EventListenerObject
 
 		if (lov != null)
 		{
+			if (!force)
+			{
+				// Only 1 LOV can be running
+				if (FormBacking.getChildForms(this.parent,Classes.ListOfValuesClass).length > 0)
+					return(false);
+			}
+
 			params.set("field",field);
 			params.set("block",block);
 			params.set("properties",lov);
 			params.set("form",this.parent);
 			this.parent.callform(Classes.ListOfValuesClass,params);
+
 			return(true);
 		}
 
@@ -879,6 +937,10 @@ export class Form implements EventListenerObject
 	{
       let bubble:boolean = false;
 		this.event.setEvent(event);
+
+		if (this.event.type == "focus")
+			await this.onCanvasFocus();
+
 
 		if (this.event.type == "wait")
 			await this.event.wait();

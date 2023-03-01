@@ -174,6 +174,11 @@ export class MemoryTable implements DataSource
 		return(this);
 	}
 
+	public getFilters() : FilterStructure
+	{
+		return(this.limit$);
+	}
+
 	public addFilter(filter:Filter | FilterStructure) : MemoryTable
 	{
 		if (this.limit$ == null)
@@ -216,11 +221,11 @@ export class MemoryTable implements DataSource
 					break;
 
 				case RecordState.Updated:
-					this.dirty$[i].state = RecordState.Query;
+					this.dirty$[i].state = RecordState.Consistent;
 					break;
 
 				case RecordState.Deleted:
-					this.dirty$[i].state = RecordState.Query;
+					this.dirty$[i].state = RecordState.Consistent;
 					break;
 			}
 		}

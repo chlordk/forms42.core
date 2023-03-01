@@ -24,8 +24,8 @@ import { Record, RecordState } from "./Record.js";
 import { Relation } from "./relations/Relation.js";
 import { FilterStructure } from "./FilterStructure.js";
 import { Block as ModelBlock } from "../model/Block.js";
-import { DataSource, LockMode } from "./interfaces/DataSource.js";
 import { EventType } from "../control/events/EventType.js";
+import { DataSource, LockMode } from "./interfaces/DataSource.js";
 
 export class DataSourceWrapper
 {
@@ -63,6 +63,11 @@ export class DataSourceWrapper
 	public set columns(columns:string[])
 	{
 		this.columns$ = columns;
+	}
+
+	public getRecords() : number
+	{
+		return(this.cache$.length);
 	}
 
 	public get dirty() : boolean
@@ -131,8 +136,11 @@ export class DataSourceWrapper
 			{
 				for (let i = 0; i < this.cache$.length; i++)
 				{
-					if (!await this.lock(this.cache$[i],true))
-						this.cache$[i].failed = true;
+					if (this.cache$[i].state == RecordState.Updated || this.cache$[i].state == RecordState.Deleted)
+					{
+						if (!await this.lock(this.cache$[i],true))
+							this.cache$[i].failed = true;
+					}
 				}
 			}
 
@@ -152,7 +160,7 @@ export class DataSourceWrapper
 
 					if (succces)
 					{
-						records[i].state = RecordState.Query;
+						records[i].state = RecordState.Consistent;
 						this.block.view.setStatus(records[i]);
 						records[i].setClean(false);
 					}
@@ -166,7 +174,7 @@ export class DataSourceWrapper
 
 					if (succces)
 					{
-						records[i].state = RecordState.Query;
+						records[i].state = RecordState.Consistent;
 						this.block.view.setStatus(records[i]);
 						records[i].setClean(false);
 					}
@@ -258,31 +266,25 @@ export class DataSourceWrapper
 		if (record.state == RecordState.Deleted)
 			return;
 
-		await this.source.refresh(record);
+		if (record.state == RecordState.New || record.state == RecordState.Inserted)
+		{
+			record.clear();
+			record.state = RecordState.New;
+			return;
+		}
 
+		await this.source.refresh(record);
 		record.setClean(false);
 
-		switch(record.state)
-		{
-			case RecordState.New : break;
+		if (record.state == RecordState.Updated)
+			record.state = RecordState.Consistent;
 
-			case RecordState.Inserted :
-			{
-				record.state = RecordState.New;
-				await this.block.preInsert(record);
-				break;
-			}
-
-			default:
-			{
-				record.state = RecordState.Query;
-				await this.block.onFetch(record);
-			}
-		}
+		await this.block.onFetch(record);
 	}
 
 	public async modified(record:Record, deleted:boolean) : Promise<boolean>
 	{
+		record.failed = false;
 		let success:boolean = true;
 
 		if (record == null)
@@ -299,7 +301,7 @@ export class DataSourceWrapper
 			}
 			else
 			{
-				if (!await this.lock(record,true))
+				if (!await this.lock(record,false))
 					return(false);
 			}
 
@@ -308,30 +310,20 @@ export class DataSourceWrapper
 		}
 		else if (record.dirty)
 		{
-			if (record.state == RecordState.New)
-			{
-				this.dirty = true;
-				success = await this.insert(record);
-				if (success) record.state = RecordState.Inserted;
-			}
+			success = true;
+			this.dirty = true;
 
-			if (record.state == RecordState.Query)
+			switch(record.state)
 			{
-				this.dirty = true;
-				success = await this.update(record);
-				if (success) record.state = RecordState.Updated;
-			}
+				case RecordState.New :
+					success = await this.insert(record);
+					if (success) record.state = RecordState.Inserted;
+					break;
 
-			if (record.state == RecordState.Inserted)
-			{
-				this.dirty = true;
-				success = await this.update(record);
-			}
-
-			if (record.state == RecordState.Updated)
-			{
-				this.dirty = true;
-				success = await this.update(record);
+				case RecordState.Consistent :
+					success = await this.update(record);
+					if (success) record.state = RecordState.Updated;
+					break;
 			}
 		}
 
@@ -435,7 +427,7 @@ export class DataSourceWrapper
 				this.eof$ = true;
 
 			this.cache$.push(...recs);
-			recs.forEach((rec) => rec.state = RecordState.Query);
+			recs.forEach((rec) => rec.state = RecordState.Consistent);
 		}
 
 		let record:Record = this.cache$[this.hwm$];
@@ -455,6 +447,12 @@ export class DataSourceWrapper
 	public async prefetch(record:number,records:number) : Promise<number>
 	{
 		let possible:number = 0;
+
+		if (record >= this.hwm$ && records >= 0)
+		{
+			records += record - this.hwm$ + 1;
+			record = this.hwm$ - 1;
+		}
 
 		if (records < 0)
 		{

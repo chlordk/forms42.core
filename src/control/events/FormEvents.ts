@@ -21,12 +21,13 @@
 
 import { KeyMap } from "./KeyMap.js";
 import { MouseMap } from "./MouseMap.js";
-import { EventType } from "./EventType.js";
+import { EventGroup, EventType } from "./EventType.js";
 import { Form } from "../../public/Form.js";
 import { EventFilter } from "./EventFilter.js";
 import { Alert } from "../../application/Alert.js";
 import { EventListener } from "./EventListener.js";
 import { FormEvent as Interface } from "./FormEvent.js";
+import { Framework } from "../../application/Framework.js";
 import { Logger, Type } from "../../application/Logger.js";
 import { ApplicationHandler } from "./ApplicationHandler.js";
 import { FlightRecorder } from "../../application/FlightRecorder.js";
@@ -93,6 +94,11 @@ export class FormEvent implements Interface
 	public get block() : string
 	{
 		return(this.block$);
+	}
+
+	public get jsevent() : any
+	{
+		return(Framework.getEvent());
 	}
 
 	public get key() : KeyMap
@@ -480,7 +486,10 @@ export class FormEvents
 
 	private static match(event:FormEvent, lsnr:EventListener) : boolean
 	{
-		if (lsnr.form != null && lsnr.form != event.form)
+		let appevent:boolean = EventGroup.ApplEvents.has(event.type);
+		let frmevent:boolean = EventGroup.FormEvents.has(event.type);
+
+		if (lsnr.form != null && (lsnr.form != event.form && !appevent))
 			return(false);
 
 		Logger.log(Type.eventlisteners," match: "+EventType[event.type]+" "+lsnr.clazz.constructor.name);
@@ -488,9 +497,13 @@ export class FormEvents
 		if (lsnr.filter != null)
 		{
 			if (lsnr.filter.mouse != null && lsnr.filter.mouse != event.mouse) return(false);
-			if (lsnr.filter.block != null && lsnr.filter.block != event.block) return(false);
-			if (lsnr.filter.field != null && lsnr.filter.field != event.field) return(false);
 			if (lsnr.filter.key != null && lsnr.filter.key.signature != event.key?.signature) return(false);
+
+			if (!frmevent)
+			{
+				if (lsnr.filter.block != null && lsnr.filter.block != event.block) return(false);
+				if (lsnr.filter.field != null && lsnr.filter.field != event.field) return(false);
+			}
 		}
 
 		return(true);

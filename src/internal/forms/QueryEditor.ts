@@ -20,6 +20,7 @@
 */
 
 import { Form } from "../Form.js";
+import { Classes } from "../Classes.js";
 import { Block } from "../../public/Block.js";
 import { Record } from "../../public/Record.js";
 import { KeyMap } from "../../control/events/KeyMap.js";
@@ -44,6 +45,9 @@ export class QueryEditor extends Form
 	constructor()
 	{
 		super(QueryEditor.page);
+
+		this.moveable = true;
+		this.resizable = true;
 
 		this.addEventListener(this.initialize,{type: EventType.PostViewInit});
 
@@ -112,7 +116,7 @@ export class QueryEditor extends Form
 				if (values.length > 0)
 				{
 					form.setValue(block,field,values[0]);
-					filter = Filters.In(field);
+					filter = Filters.AnyOf(field);
 					filter.constraint = values;
 				}
 				break;
@@ -241,6 +245,7 @@ export class QueryEditor extends Form
 
 	private async initialize() : Promise<boolean>
 	{
+		this.canvas.zindex = Classes.zindex;
 		let view:HTMLElement = this.getView();
 
 		this.values = this.getBlock("values");
@@ -269,7 +274,7 @@ export class QueryEditor extends Form
 		this.addEventListener(this.insert,{type: EventType.Key, key: KeyMap.insert, block: "values"});
 		this.addEventListener(this.insert,{type: EventType.Key, key: KeyMap.insertAbove, block: "values"});
 
-		this.addEventListener(this.setType,{type: EventType.PostValidateField, block: "options", field: "options"});
+		this.addEventListener(this.setType,{type: EventType.WhenValidateField, block: "options", field: "options"});
 
 		if (value != null)
 		{
@@ -409,7 +414,7 @@ export class QueryEditor extends Form
 				</div>
 				<span style="display: block; height: 8px"></span>
 				<div name="single-value">
-					<tabel>
+					<table>
 						<tr>
 							<td>
 								<input name="value" from="options" class="single-value">
@@ -421,7 +426,7 @@ export class QueryEditor extends Form
 					</table>
 				</div>
 				<div name="range-values">
-					<tabel>
+					<table>
 						<tr>
 							<td>
 								<input name="value1" from="options" class="range-values">

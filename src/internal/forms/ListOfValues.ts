@@ -20,6 +20,7 @@
 */
 
 import { Form } from "../Form.js";
+import { Classes } from "../Classes.js";
 import { Case } from "../../public/Case.js";
 import { Block } from "../../public/Block.js";
 import { Alert } from "../../application/Alert.js";
@@ -46,6 +47,10 @@ export class ListOfValues extends Form
 	constructor()
 	{
 		super("");
+
+		this.moveable = true;
+		this.resizable = true;
+
 		this.addEventListener(this.initialize,{type: EventType.PostViewInit});
 	}
 
@@ -92,7 +97,7 @@ export class ListOfValues extends Form
 
 	private query() : void
 	{
-		let flt:string = this.getValue("filter","search");
+		let flt:string = this.getValue("filter","criteria");
 		if (flt == null) flt = "";
 
 		if (this.props.filterPreProcesser != null)
@@ -183,6 +188,8 @@ export class ListOfValues extends Form
 
 	private async initialize() : Promise<boolean>
 	{
+		this.canvas.zindex = Classes.zindex;
+
 		this.form = this.parameters.get("form");
 		this.block = this.parameters.get("block");
 		this.props = this.parameters.get("properties");
@@ -228,9 +235,16 @@ export class ListOfValues extends Form
 
 		await this.setView(page);
 		let view:HTMLElement = this.getView();
+
+		if (this.props.width)
+		{
+			view.querySelectorAll("input[name='display']").forEach((elem) =>
+			{(elem as HTMLInputElement).style.width = this.props.width});
+		}
+
 		Internals.stylePopupWindow(view,this.props.title);
 
-		this.goField("filter","search");
+		this.goField("filter","criteria");
 		this.results = this.getBlock("results");
 
 		this.addListeners();
@@ -294,7 +308,7 @@ export class ListOfValues extends Form
 	`
 	<div name="popup-body">
 		<div name="lov" class="CSS">
-			<div><input name="search" from="filter"></div>
+			<div name="search"><input name="criteria" from="filter"></div>
 			<div name="results">
 				<div name="row" foreach="row in 1..ROWS">
 					<input name="display" from="results" row="$row" readonly derived>

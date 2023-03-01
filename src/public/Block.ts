@@ -54,8 +54,8 @@ export class Block
 	{
 		this.form$ = form;
 		this.name$ = name?.toLowerCase();
-		form.blocks.set(this.name$,this);
 		FormBacking.getModelBlock(this,true);
+		FormBacking.getBacking(form).blocks.set(this.name$,this);
 	}
 
 	public get form() : Form
@@ -100,12 +100,7 @@ export class Block
 
 	public get fields() : string[]
 	{
-		let fields:Set<string> = new Set<string>();
-
-		FormBacking.getViewBlock(this).getAllFields().
-			forEach((fld) => fields.add(fld.name))
-
-		return(Array.from(fields));
+		return(FormBacking.getViewBlock(this).getFieldNames());
 	}
 
 	public flush() : void
@@ -133,15 +128,15 @@ export class Block
 		return(FormBacking.getModelBlock(this).empty);
 	}
 
-	public refresh(offset?:number) : void
+	public async refresh(offset?:number) : Promise<void>
 	{
 		if (offset == null) offset = 0;
-		FormBacking.getModelBlock(this).refresh(offset);
+		await FormBacking.getModelBlock(this).refresh(offset);
 	}
 
-	public getFieldNames() : string[]
+	public hasField(name:string) : boolean
 	{
-		return(FormBacking.getViewBlock(this).getFieldNames());
+		return(this.fields.includes(name?.toLowerCase()));
 	}
 
 	public showDatePicker(field:string) : void
@@ -150,10 +145,10 @@ export class Block
 		FormBacking.getViewForm(this.form).showDatePicker(this.name,field);
 	}
 
-	public showListOfValues(field:string) : void
+	public showListOfValues(field:string, force?:boolean) : void
 	{
 		field = field?.toLowerCase();
-		FormBacking.getViewForm(this.form).showListOfValues(this.name,field);
+		FormBacking.getViewForm(this.form).showListOfValues(this.name,field,force);
 	}
 
 	public async sendkey(key:KeyMap, field?:string, clazz?:string) : Promise<boolean>
@@ -204,6 +199,15 @@ export class Block
 
 		for (let i = 0; i < field.length; i++)
 			FormBacking.getBacking(this.form).setListOfValues(this.name,field[i],lov);
+	}
+
+	public removeListOfValues(field:string|string[]) : void
+	{
+		if (!Array.isArray(field))
+			field = [field];
+
+		for (let i = 0; i < field.length; i++)
+			FormBacking.getBacking(this.form).removeListOfValues(this.name,field[i]);
 	}
 
 	public setDateConstraint(constraint:DateConstraint, field:string|string[]) : void
@@ -266,9 +270,29 @@ export class Block
 		this.getRecord()?.setValue(field,value);
 	}
 
+	public isValid(field:string) : boolean
+	{
+		return(FormBacking.getViewBlock(this).isValid(field));
+	}
+
+	public setValid(field:string, flag:boolean) : void
+	{
+		FormBacking.getViewBlock(this).setValid(field,flag);
+	}
+
 	public getCurrentField() : string
 	{
 		return(FormBacking.getViewBlock(this).current.name);
+	}
+
+	public hasPendingChanges() : boolean
+	{
+		return(FormBacking.getModelBlock(this).getDirtyCount() > 0);
+	}
+
+	public showLastQuery() : void
+	{
+		FormBacking.getModelBlock(this).showLastQuery();
 	}
 
 	/**

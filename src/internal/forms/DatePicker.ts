@@ -20,6 +20,7 @@
 */
 
 import { Form } from "../Form.js";
+import { Classes } from "../Classes.js";
 import { Block } from "../../public/Block.js";
 import { KeyMap } from "../../control/events/KeyMap.js";
 import { KeyCodes } from "../../control/events/KeyCodes.js";
@@ -50,6 +51,10 @@ export class DatePicker extends Form
 	constructor()
 	{
 		super(DatePicker.page);
+
+		this.moveable = true;
+		this.resizable = true;
+
 		this.addEventListener(this.initialize,{type: EventType.PostViewInit});
 
 		this.addEventListener(this.setDate,
@@ -114,6 +119,7 @@ export class DatePicker extends Form
 
 	private async initialize() : Promise<boolean>
 	{
+		this.canvas.zindex = Classes.zindex;
 		let view:HTMLElement = this.getView();
 
 		Internals.stylePopupWindow(view,"Calendar");

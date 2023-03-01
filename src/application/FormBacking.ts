@@ -21,21 +21,21 @@
 
 import { Alert } from './Alert.js';
 import { Form } from '../public/Form.js';
+import { Class } from '../types/Class.js';
+import { Block } from '../public/Block.js';
+import { Key } from '../model/relations/Key.js';
+import { FormMetaData } from './FormMetaData.js';
 import { Form as ViewForm } from '../view/Form.js';
 import { Form as ModelForm } from '../model/Form.js';
-
-import { Key } from '../model/relations/Key.js';
-import { Relation } from '../model/relations/Relation.js';
-
-import { Block } from '../public/Block.js';
-import { FormMetaData } from './FormMetaData.js';
 import { Block as ViewBlock } from '../view/Block.js';
 import { Connection } from '../database/Connection.js';
 import { Block as ModelBlock } from '../model/Block.js';
 import { ListOfValues } from '../public/ListOfValues.js';
+import { Relation } from '../model/relations/Relation.js';
 import { EventType } from '../control/events/EventType.js';
-import { FormEvents } from '../control/events/FormEvents.js';
+import { Form as InternalForm } from '../internal/Form.js';
 import { DateConstraint } from '../public/DateConstraint.js';
+import { FormEvent, FormEvents } from '../control/events/FormEvents.js';
 
 export class FormBacking
 {
@@ -55,11 +55,27 @@ export class FormBacking
 		return(FormBacking.form);
 	}
 
-	public static getRunningForms() : Form[]
+	public static getRunningForms(clazz?:Class<Form|InternalForm>) : Form[]
 	{
 		let forms:Form[] = [];
 		forms.push(...FormBacking.vforms.keys());
 		return(forms);
+	}
+
+	public static getChildForms(form:Form, clazz?:Class<Form|InternalForm>) : Form[]
+	{
+		let children:Form[] = [];
+
+		FormBacking.bdata.forEach((bd,frm) =>
+		{
+			if (bd.parent == form)
+			{
+				if (!clazz || frm.constructor.name == clazz.name)
+					children.push(frm);
+			}
+		})
+
+		return(children);
 	}
 
 	public static getCurrentViewForm() : ViewForm
@@ -167,7 +183,26 @@ export class FormBacking
 		return(blk);
 	}
 
-	public static async save() : Promise<boolean>
+	public static hasTransactions(connection?:Connection) : boolean
+	{
+		if (connection) return(connection.hasTransactions());
+
+		let transactions:boolean = false;
+		let dbconns:Connection[] = Connection.getAllConnections();
+
+		for (let i = 0; i < dbconns.length; i++)
+		{
+			if (dbconns[i].hasTransactions())
+			{
+				transactions = true;
+				break;
+			}
+		}
+
+		return(transactions);
+	}
+
+	public static async commit() : Promise<boolean>
 	{
 		let failed:boolean = false;
 		let forms:ModelForm[] = [...FormBacking.mforms.values()];
@@ -178,7 +213,23 @@ export class FormBacking
 				return(false);
 		}
 
+		let transactions:boolean = false;
 		let dbconns:Connection[] = Connection.getAllConnections();
+
+		for (let i = 0; i < dbconns.length; i++)
+		{
+			if (dbconns[i].hasTransactions())
+			{
+				transactions = true;
+				break;
+			}
+		}
+
+		if (!transactions)
+			return(true);
+
+		if (!await FormEvents.raise(FormEvent.AppEvent(EventType.PreCommit)))
+			return(false);
 
 		for (let i = 0; i < dbconns.length; i++)
 		{
@@ -198,15 +249,45 @@ export class FormBacking
 		if (!failed) Alert.message("Transactions successfully saved","Transactions");
 		else 			 Alert.warning("Failed to push transactions to backend","Transactions");
 
-		return(failed);
+		if (!failed)
+		{
+			if (!await FormEvents.raise(FormEvent.AppEvent(EventType.PostCommit)))
+				return(false);
+		}
+
+		return(!failed);
 	}
 
-	public static async undo() : Promise<boolean>
+	public static async rollback() : Promise<boolean>
 	{
 		let failed:boolean = false;
 		let forms:ModelForm[] = [...FormBacking.mforms.values()];
 
+		let transactions:boolean = false;
 		let dbconns:Connection[] = Connection.getAllConnections();
+
+		for (let i = 0; i < dbconns.length; i++)
+		{
+			if (dbconns[i].hasTransactions())
+			{
+				transactions = true;
+				break;
+			}
+		}
+
+		if (!transactions)
+		{
+			for (let i = 0; i < forms.length; i++)
+			{
+				if (!await forms[i].undo())
+					return(false);
+			}
+
+			return(true);
+		}
+
+		if (!await FormEvents.raise(FormEvent.AppEvent(EventType.PreRollback)))
+			return(false);
 
 		for (let i = 0; i < dbconns.length; i++)
 		{
@@ -235,7 +316,13 @@ export class FormBacking
 		if (failed) Alert.warning("Failed to roll back transactions","Transactions");
 		else 			Alert.message("Transactions successfully rolled back","Transactions");
 
-		return(failed);
+		if (!failed)
+		{
+			if (!await FormEvents.raise(FormEvent.AppEvent(EventType.PostRollback)))
+				return(false);
+		}
+
+		return(!failed);
 	}
 
 
@@ -245,6 +332,9 @@ export class FormBacking
 	private listeners$:object[] = [];
 	private autoblocks$:Block[] = [];
 	private haschild$:boolean = false;
+
+	private blocks$:Map<string,Block> =
+		new Map<string,Block>();
 
 	private lovs$:Map<string,Map<string,ListOfValues>> =
 		new Map<string,Map<string,ListOfValues>>();
@@ -272,6 +362,11 @@ export class FormBacking
 	public set parent(form:Form)
 	{
 		this.parent$ = form;
+	}
+
+	public get blocks() : Map<string,Block>
+	{
+		return(this.blocks$);
 	}
 
 	public get wasCalled() : boolean
@@ -304,6 +399,13 @@ export class FormBacking
 		block = block?.toLowerCase();
 		field = field?.toLowerCase();
 		return(this.lovs$.get(block)?.get(field));
+	}
+
+	public removeListOfValues(block:string, field:string) : void
+	{
+		block = block?.toLowerCase();
+		field = field?.toLowerCase();
+		this.lovs$.get(block)?.delete(field);
 	}
 
 	public setListOfValues(block:string, field:string, lov:ListOfValues) : void
@@ -365,8 +467,8 @@ export class FormBacking
 		this.autoblocks$.forEach((block) =>
 		{
 			this.lovs$.delete(block.name);
+			this.blocks.delete(block.name);
 			this.datectr$.delete(block.name);
-			block.form.blocks.delete(block.name);
 		})
 	}
 

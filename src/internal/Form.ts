@@ -45,15 +45,14 @@ import { FormEvent, FormEvents } from '../control/events/FormEvents.js';
  * when calling internal forms from public forms
  */
 
+
 export class Form implements CanvasComponent
 {
-	public canvas:Canvas = null;
-	public moveable:boolean = true;
-	public navigable:boolean = true;
-	public resizable:boolean = true;
+	public moveable:boolean = false;
+	public navigable:boolean = false;
+	public resizable:boolean = false;
 	public initiated:Date = new Date();
 	public parameters:Map<any,any> = new Map<any,any>();
-	public blocks:Map<string,Block> = new Map<string,Block>();
 
 	constructor(page?:string|HTMLElement)
 	{
@@ -64,6 +63,16 @@ export class Form implements CanvasComponent
 	public get name() : string
 	{
 		return(this.constructor.name.toLowerCase());
+	}
+
+	public get canvas() : Canvas
+	{
+		return(FormBacking.getViewForm(this)?.canvas);
+	}
+
+	public get blocks() : Block[]
+	{
+		return(Array.from(FormBacking.getBacking(this).blocks.values()))
 	}
 
 	public hide() : void
@@ -86,11 +95,6 @@ export class Form implements CanvasComponent
 	public focus() : void
 	{
 		FormBacking.getViewForm(this)?.focus();
-	}
-
-	public getEvent() : any
-	{
-		return(Framework.getEvent());
 	}
 
 	public getCurrentBlock() : Block
@@ -147,11 +151,11 @@ export class Form implements CanvasComponent
 		FormBacking.getViewForm(this).showDatePicker(block,field);
 	}
 
-	public showListOfValues(block:string, field:string) : void
+	public showListOfValues(block:string, field:string, force?:boolean) : void
 	{
 		block = block?.toLowerCase();
 		field = field?.toLowerCase();
-		FormBacking.getViewForm(this).showListOfValues(block,field);
+		FormBacking.getViewForm(this).showListOfValues(block,field,force);
 	}
 
 	public async sendkey(key:KeyMap, block?:string, field?:string, clazz?:string) : Promise<boolean>
@@ -222,7 +226,7 @@ export class Form implements CanvasComponent
 
 	public getBlock(block:string) : Block
 	{
-		return(this.blocks.get(block?.toLowerCase()));
+		return(FormBacking.getBacking(this).blocks.get(block?.toLowerCase()));
 	}
 
 	public setDataSource(block:string,source:DataSource) : void
@@ -296,6 +300,7 @@ export class Form implements CanvasComponent
 
 	public async setView(page:string|HTMLElement) : Promise<void>
 	{
+		let canvas:Canvas = this.canvas;
 		let back:FormBacking = FormBacking.getBacking(this);
 
 		if (page == null)
@@ -306,7 +311,7 @@ export class Form implements CanvasComponent
 				return;
 		}
 
-		if (this.canvas != null)
+		if (canvas != null)
 		{
 			if (!this.validate())
 			{
@@ -324,8 +329,11 @@ export class Form implements CanvasComponent
 		Framework.parse(this,page);
 		back.page = page;
 
-		if (this.canvas != null)
-			this.canvas.replace(page);
+		if (canvas != null)
+		{
+			canvas.replace(page);
+			FormBacking.getViewForm(this,true).canvas = canvas;
+		}
 
 		await FormBacking.getViewForm(this,true).finalize();
 		await FormBacking.getModelForm(this,true).finalize();

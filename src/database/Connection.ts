@@ -86,6 +86,11 @@ export class Connection extends BaseConnection
 		return(this.conn$ != null);
 	}
 
+	public hasTransactions() : boolean
+	{
+		return(this.modified$ != null);
+	}
+
 	public async connect(username?:string, password?:string) : Promise<boolean>
 	{
 		this.touched$ = null;
@@ -171,9 +176,6 @@ export class Connection extends BaseConnection
 		this.trx$ = new Object();
 		this.touched$ = new Date();
 
-		if (!await FormEvents.raise(FormEvent.AppEvent(EventType.PreCommit)))
-			return(false);
-
 		Logger.log(Type.database,"commit");
 		let thread:number = FormsModule.get().showLoading("Comitting");
 		let response:any = await this.post(this.conn$+"/commit");
@@ -192,7 +194,7 @@ export class Connection extends BaseConnection
 			return(false);
 		}
 
-		return(await FormEvents.raise(FormEvent.AppEvent(EventType.PostCommit)));
+		return(true);
 	}
 
 	public async rollback() : Promise<boolean>
@@ -203,9 +205,6 @@ export class Connection extends BaseConnection
 		this.tmowarn$ = false;
 		this.trx$ = new Object();
 		this.touched$ = new Date();
-
-		if (!await FormEvents.raise(FormEvent.AppEvent(EventType.PreRollback)))
-			return(false);
 
 		Logger.log(Type.database,"rollback");
 		let thread:number = FormsModule.get().showLoading("Rolling back");
@@ -225,7 +224,7 @@ export class Connection extends BaseConnection
 			return(false);
 		}
 
-		return(await FormEvents.raise(FormEvent.AppEvent(EventType.PostRollback)));
+		return(true);
 	}
 
 	public async select(sql:SQLRest, cursor:Cursor, rows:number, describe?:boolean) : Promise<Response>
@@ -372,7 +371,6 @@ export class Connection extends BaseConnection
 
 		this.tmowarn$ = false;
 		this.touched$ = new Date();
-		this.modified$ = new Date();
 
 		Logger.log(Type.database,"lock");
 		let thread:number = FormsModule.get().showLoading("Locking");
@@ -384,6 +382,10 @@ export class Connection extends BaseConnection
 			console.error(response);
 			return(response);
 		}
+
+		this.tmowarn$ = false;
+		this.touched$ = new Date();
+		this.modified$ = new Date();
 
 		if (trxstart)
 			await FormEvents.raise(FormEvent.AppEvent(EventType.OnTransaction));
@@ -433,6 +435,9 @@ export class Connection extends BaseConnection
 			bindvalues: this.convert(sql.bindvalues)
 		};
 
+		this.tmowarn$ = false;
+		this.touched$ = new Date();
+
 		Logger.log(Type.database,"insert");
 		let thread:number = FormsModule.get().showLoading("Insert");
 		let returnclause:string = sql.returnclause ? "?returning=true" : "";
@@ -467,6 +472,9 @@ export class Connection extends BaseConnection
 			bindvalues: this.convert(sql.bindvalues)
 		};
 
+		this.tmowarn$ = false;
+		this.touched$ = new Date();
+
 		Logger.log(Type.database,"update");
 		let thread:number = FormsModule.get().showLoading("Update");
 		let returnclause:string = sql.returnclause ? "?returning=true" : "";
@@ -500,6 +508,9 @@ export class Connection extends BaseConnection
 			dateformat: "UTC",
 			bindvalues: this.convert(sql.bindvalues)
 		};
+
+		this.tmowarn$ = false;
+		this.touched$ = new Date();
 
 		Logger.log(Type.database,"delete");
 		let thread:number = FormsModule.get().showLoading("Delete");
@@ -538,9 +549,6 @@ export class Connection extends BaseConnection
 
 		this.tmowarn$ = false;
 		this.touched$ = new Date();
-		if (this.modified$) this.modified$ = new Date();
-
-		if (patch) this.modified$ = new Date();
 
 		Logger.log(Type.database,"call");
 		let thread:number = FormsModule.get().showLoading("Call procedure");
@@ -554,6 +562,10 @@ export class Connection extends BaseConnection
 			Alert.warning(response.message,"Database Connection");
 			return(response);
 		}
+
+		this.tmowarn$ = false;
+		this.touched$ = new Date();
+		if (patch) this.modified$ = new Date();
 
 		if (trxstart && patch)
 			await FormEvents.raise(FormEvent.AppEvent(EventType.OnTransaction));
@@ -575,7 +587,6 @@ export class Connection extends BaseConnection
 
 		this.tmowarn$ = false;
 		this.touched$ = new Date();
-		if (this.modified$) this.modified$ = new Date();
 
 		Logger.log(Type.database,"execute");
 		let thread:number = FormsModule.get().showLoading("Execute procedure");
@@ -589,6 +600,10 @@ export class Connection extends BaseConnection
 			Alert.warning(response.message,"Database Connection");
 			return(response);
 		}
+
+		this.tmowarn$ = false;
+		this.touched$ = new Date();
+		if (patch) this.modified$ = new Date();
 
 		if (trxstart && patch)
 			await FormEvents.raise(FormEvent.AppEvent(EventType.OnTransaction));
@@ -607,8 +622,9 @@ export class Connection extends BaseConnection
 
 		if (!response.success)
 		{
-			Alert.warning(response.message,"Database Connection");
 			this.conn$ = null;
+			Alert.warning(response.message,"Database Connection");
+			await FormEvents.raise(FormEvent.AppEvent(EventType.Disconnect));
 			return(response);
 		}
 
@@ -621,7 +637,7 @@ export class Connection extends BaseConnection
 				if (idle > Connection.TRXTIMEOUT && this.tmowarn$)
 				{
 					Alert.warning("Transaction is being rolled back","Database Connection");
-					await FormBacking.undo();
+					await FormBacking.rollback();
 				}
 				else
 				{

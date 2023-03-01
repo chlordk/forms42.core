@@ -89,10 +89,15 @@ export class Block
 		return(this.model$);
 	}
 
+	public get visited() : boolean
+	{
+		return(this.curinst$ != null);
+	}
+
 	public get current() : FieldInstance
 	{
 		if (this.curinst$ == null)
-			this.curinst$ = this.getCurrentRow().getFirstInstance(Status.na);
+			return(this.getCurrentRow().getFirstInstance(Status.na));
 
 		return(this.curinst$);
 	}
@@ -115,11 +120,40 @@ export class Block
 		}
 		else
 		{
-			let state:RecordState = this.model.getRecord().state;
+			let state:RecordState = this.model.getRecord()?.state;
+			if (state == null) state = RecordState.Updated;
+
 			let inst:FieldInstance = this.getCurrentRow()?.getFirstInstance(this.convert(state));
 			if (inst == null) inst = this.getRow(-1)?.getFirstInstance(this.convert(state));
+
+			if (!inst)
+			{
+				let cf:number = this.getRow(-1)?.getFieldInstances()?.length;
+				let rf:number = this.getCurrentRow()?.getFieldInstances()?.length;
+
+				if (cf == null) cf = 0;
+				if (rf == null) rf = 0;
+
+				if (cf + rf > 0)
+					console.log("No available fields in "+this.name+" in state "+RecordState[state]);
+			}
+
 			inst?.focus();
 		}
+	}
+
+	public isValid(field:string) : boolean
+	{
+		let valid:boolean = true;
+		field = field?.toLowerCase();
+		this.getCurrentFields(field).forEach((fld) => {if (!fld.valid) valid = false});
+		return(valid);
+	}
+
+	public setValid(field:string, flag:boolean) : void
+	{
+		field = field?.toLowerCase();
+		this.getCurrentFields(field).forEach((fld) => fld.setInstanceValidity(flag));
 	}
 
 	public goField(field:string, clazz?:string) : void
@@ -128,6 +162,7 @@ export class Block
 		clazz = clazz?.toLowerCase();
 
 		let inst:FieldInstance = null;
+		let state:RecordState = this.model.getRecord()?.state;
 		let ifield:Field = this.getCurrentRow().getField(field);
 
 		if (ifield == null)
@@ -137,8 +172,21 @@ export class Block
 		{
 			let instances:FieldInstance[] = ifield?.getInstancesByClass(clazz);
 			if (instances.length > 0) inst = instances[0];
-			inst?.focus();
 		}
+
+		if (!inst)
+		{
+			let cf:number = this.getRow(-1)?.getFieldInstances()?.length;
+			let rf:number = this.getCurrentRow()?.getFieldInstances()?.length;
+
+			if (cf == null) cf = 0;
+			if (rf == null) rf = 0;
+
+			if (cf + rf > 0)
+				console.log("No available fields named '"+field+"' in block '"+this.name+"' in state "+RecordState[state])
+		}
+
+		inst?.focus();
 	}
 
 	public empty(rownum?:number) : boolean
@@ -416,12 +464,6 @@ export class Block
 		return(success);
 	}
 
-	public async postValidateField(inst:FieldInstance) : Promise<boolean>
-	{
-		if (!await this.wait4EventTransaction(EventType.PostValidateField)) return(false);
-		return(await this.fireFieldEvent(EventType.PostValidateField,inst));
-	}
-
 	public async validateRow() : Promise<boolean>
 	{
 		if (!this.getCurrentRow().exist) return(true);
@@ -645,7 +687,6 @@ export class Block
 			}
 
 			this.setIndicators(null,rownum);
-
 			return;
 		}
 
@@ -988,6 +1029,31 @@ export class Block
 		return(inst);
 	}
 
+	public getQBEInstance(inst:FieldInstance) : FieldInstance
+	{
+		if (inst?.row > 0)
+		{
+			let idx:number = this.getRow(inst.row).getFieldIndex(inst);
+			inst = this.getRow(0).getFieldByIndex(idx);
+		}
+
+		if (!inst?.focusable(Status.qbe))
+			return(null);
+
+		return(inst);
+	}
+
+	public getPreviousInstance(inst:FieldInstance) : FieldInstance
+	{
+		if (inst?.row > 0)
+		{
+			let idx:number = this.getRow(inst.row).getFieldIndex(inst);
+			inst = this.getRow(inst.row-1).getFieldByIndex(idx);
+		}
+
+		return(inst);
+	}
+
 	public finalize() : void
 	{
 		let rows:Row[] = [];
@@ -1197,7 +1263,7 @@ export class Block
 		{
 			case null							: return(Status.na);
 			case RecordState.New 			: return(Status.new);
-			case RecordState.Query 			: return(Status.update);
+			case RecordState.Consistent 			: return(Status.update);
 			case RecordState.Updated 		: return(Status.update);
 			case RecordState.Deleted 		: return(Status.delete);
 			case RecordState.Inserted 		: return(Status.insert);

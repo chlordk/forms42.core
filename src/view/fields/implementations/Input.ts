@@ -23,10 +23,10 @@ import { Pattern } from "../Pattern.js";
 import { DataType } from "../DataType.js";
 import { Section } from "../interfaces/Pattern.js";
 import { DataMapper, Tier } from "../DataMapper.js";
-import { BrowserEvent } from "../../BrowserEvent.js";
 import { Alert } from "../../../application/Alert.js";
 import { FieldProperties } from "../FieldProperties.js";
 import { FieldFeatureFactory } from "../../FieldFeatureFactory.js";
+import { BrowserEvent } from "../../../control/events/BrowserEvent.js";
 import { FieldEventHandler } from "../interfaces/FieldEventHandler.js";
 import { KeyMap, KeyMapping } from "../../../control/events/KeyMap.js";
 import { DatePart, dates, FormatToken } from "../../../model/dates/dates.js";
@@ -69,7 +69,7 @@ export class Input implements FieldImplementation, EventListenerObject
 
 	public set datatype(type:DataType)
 	{
-		this.datatype = type;
+		this.datatype$ = type;
 	}
 
 	public create(eventhandler:FieldEventHandler, _tag:string) : HTMLInputElement
@@ -528,7 +528,9 @@ export class Input implements FieldImplementation, EventListenerObject
 			if (this.datatype$ == DataType.integer || this.datatype$ == DataType.decimal)
 			{
 				let num:string = this.getElementValue();
-				if (num.trim().length > 0) this.setElementValue((+num)+"");
+
+				if (isNaN(+num)) this.setElementValue(null);
+				else if (num.trim().length > 0) this.setElementValue((+num)+"");
 			}
 
 			if (this.pattern == null)
@@ -541,7 +543,7 @@ export class Input implements FieldImplementation, EventListenerObject
 				this.pattern.setValue(this.getElementValue());
 
 				if (this.pattern.isNull()) this.setElementValue(null);
-				else					   this.setElementValue(this.pattern.getValue());
+				else					   		this.setElementValue(this.pattern.getValue());
 
 				if (this.pattern.getValue() != this.initial)
 					bubble = true;

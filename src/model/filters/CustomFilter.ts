@@ -25,41 +25,18 @@ import { DataType } from "../../database/DataType.js";
 import { BindValue } from "../../database/BindValue.js";
 
 
-export class Contains implements Filter
+export class CustomFilter implements Filter
 {
-	private columns$:string[] = [];
+	private column$:string = null;
 	private bindval$:string = null;
 	private datatype$:string = null;
-	private constraint$:string[] = null;
+	private constraint$:any[] = null;
 	private bindvalues$:BindValue[] = null;
 
-	public constructor(columns:string|string[])
+	public constructor(column:string)
 	{
-		this.columns$ = [];
-
-		if (typeof columns === "string")
-		{
-			let list:string[] = [];
-
-			columns.split(",").forEach((column) =>
-			{
-				column = column.trim();
-
-				if (column.length > 0)
-					list.push(column);
-			})
-
-			columns = list;
-		}
-
-		if (!Array.isArray(columns))
-			columns = [columns];
-
-		this.columns$ = columns;
-		this.bindval$ = columns[0];
-
-		for (let i = 1; i < columns.length; i++)
-			this.bindval$ += "_"+columns[i];
+		this.column$ = column;
+		this.bindval$ = column;
 	}
 
 	public clear() : void
@@ -67,9 +44,9 @@ export class Contains implements Filter
 		this.constraint$ = null;
 	}
 
-	public clone(): Contains
+	public clone(): CustomFilter
 	{
-		let clone:Contains = Reflect.construct(this.constructor,this.columns$);
+		let clone:CustomFilter = Reflect.construct(this.constructor,[this.column$]);
 		clone.bindval$ = this.bindval$;
 		clone.datatype$ = this.datatype$;
 		return(clone.setConstraint(this.constraint$));
@@ -80,7 +57,7 @@ export class Contains implements Filter
 		return(this.datatype$);
 	}
 
-	public setDataType(type:DataType|string) : Contains
+	public setDataType(type:DataType|string) : CustomFilter
 	{
 		if (typeof type === "string") this.datatype$ = type;
 		else this.datatype$ = DataType[type];
@@ -92,92 +69,61 @@ export class Contains implements Filter
 		return(this.bindval$);
 	}
 
-	public setBindValueName(name:string) : Filter
+	public setBindValueName(name:string) : CustomFilter
 	{
 		this.bindval$ = name;
 		return(this);
 	}
 
-	public setConstraint(values:any) : Contains
+	public setConstraint(values:any|any[]) : CustomFilter
 	{
 		this.constraint = values;
 		return(this);
 	}
 
-	public get constraint() : string|string[]
+	public get constraint() : any|any[]
 	{
 		return(this.constraint$);
 	}
 
-	public set constraint(values:string|string[])
+	public set constraint(values:any|any[])
 	{
-		this.constraint$ = [];
-		this.bindvalues$ = null;
-
-		if (values == null)
-			return;
-
-		if (!Array.isArray(values))
-			values = values.split(" ")
-
-		for (let i = 0; i < values.length; i++)
-		{
-			if (values[i].length > 0)
-				this.constraint$.push(values[i].trim().toLocaleLowerCase());
-		}
+		this.constraint$ = values;
 	}
 
-	public getBindValue(): BindValue
+	public getBindValue() : BindValue
 	{
+		if (this.bindvalues$ == null || this.bindvalues$.length == 0)
+			return(null);
+
 		return(this.getBindValues()[0]);
+	}
+
+	public setBindValues(values:BindValue[]) : void
+	{
+		this.bindvalues$ = values;
 	}
 
 	public getBindValues(): BindValue[]
 	{
 		if (this.bindvalues$ == null)
-		{
-			let str = "";
-
-			if (this.constraint$ != null)
-			{
-				for (let i = 0; i < this.constraint$.length; i++)
-				{
-					str += this.constraint$[i];
-
-					if (i < this.constraint$.length - 1)
-						str += " ";
-				}
-			}
-
-			this.bindvalues$ = [new BindValue(this.bindval$,str,this.datatype$)];
-			if (this.datatype$) this.bindvalues$[0].forceDataType = true;
-		}
+			this.bindvalues$ = [];
 
 		return(this.bindvalues$);
 	}
 
 	public async evaluate(record:Record) : Promise<boolean>
 	{
-		let value:string = "";
-
-		if (this.bindvalues$)
-			this.constraint$ = this.bindvalues$[0].value;
-
-		if (this.constraint$ == null) return(false);
-
-		for (let c = 0; c < this.columns$.length; c++)
-			value += " " +  record.getValue(this.columns$[c]?.toLowerCase());
-
-		value = value.toLocaleLowerCase();
-
-		for (let c = 0; c < this.constraint$.length; c++)
-			if (!value.includes(this.constraint$[c])) return(false);
-
-		return(true);
+		throw "Custom filters must overwrite 'evaluate' method";
 	}
 
 	public asSQL() : string
 	{
-		return(this.columns$+" contains "+this.constraint$);
+		throw "Custom filters must overwrite 'asSQL' method";
+	}
+
+	public toString() : string
+	{
+		return("Custom filter");
 	}
 }
