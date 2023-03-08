@@ -113,11 +113,6 @@ export class Block
 		return(FormBacking.getModelBlock(this).clear(!force));
 	}
 
-	public insertMode() : boolean
-	{
-		return(this.getRecord().state == RecordState.New || this.getRecord().state == RecordState.Inserted);
-	}
-
 	public queryMode() : boolean
 	{
 		return(FormBacking.getModelBlock(this).querymode);
@@ -270,6 +265,11 @@ export class Block
 		this.getRecord()?.setValue(field,value);
 	}
 
+	public isDirty() : boolean
+	{
+		return(FormBacking.getModelBlock(this).getPendingCount() > 0);
+	}
+
 	public isValid(field:string) : boolean
 	{
 		return(FormBacking.getViewBlock(this).isValid(field));
@@ -287,7 +287,7 @@ export class Block
 
 	public hasPendingChanges() : boolean
 	{
-		return(FormBacking.getModelBlock(this).getDirtyCount() > 0);
+		return(FormBacking.getModelBlock(this).getPendingCount() > 0);
 	}
 
 	public showLastQuery() : void
@@ -517,5 +517,10 @@ export class Block
 		if (!filter) filter = {} as EventFilter;
 		(filter as EventFilter).block = this.name;
 		return(FormEvents.addListener(this.form,this,method,filter));
+	}
+
+	public dump() : void
+	{
+		FormBacking.getModelBlock(this).wrapper.dump();
 	}
 }

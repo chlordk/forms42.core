@@ -78,6 +78,27 @@ export class Form
 		return(this.parent$);
 	}
 
+	public set dirty(flag:boolean)
+	{
+		let blocks:Block[] = Array.from(this.blocks$.values());
+
+		for (let i = 0; i < blocks.length; i++)
+			blocks[i].dirty = flag;
+	}
+
+	public get dirty() : boolean
+	{
+		let blocks:Block[] = Array.from(this.blocks$.values());
+
+		for (let i = 0; i < blocks.length; i++)
+		{
+			if (blocks[i].dirty)
+				return(true);
+		}
+
+		return(false);
+	}
+
 	public get QueryManager() : QueryManager
 	{
 		return(this.qrymgr$);
@@ -94,14 +115,15 @@ export class Form
 		let blocks:Block[] = Array.from(this.blocks$.values());
 
 		for (let i = 0; i < blocks.length; i++)
-			dirty +=  blocks[i].getDirtyCount();
+			dirty += blocks[i].getDirtyCount();
 
 		return(dirty);
 	}
 
-	public setClean() : void
+	public synchronize() : void
 	{
-		this.blocks$.forEach((block) => {block.setClean()});
+		this.blocks$.forEach((block) =>
+		{block.wrapper.setSynchronized();});
 	}
 
 	public async undo() : Promise<boolean>
@@ -112,7 +134,7 @@ export class Form
 
 		for (let i = 0; i < blocks.length; i++)
 		{
-			if (blocks[i].isDirty())
+			if (blocks[i].dirty)
 			{
 				dirty.push(blocks[i]);
 
@@ -129,15 +151,19 @@ export class Form
 		for (let i = 0; i < dirty.length; i++)
 		{
 			this.blkcord$.getDetailBlocks(dirty[i],true).
-			forEach((detail) => {requery.delete(detail)});
+			forEach((detail) =>
+			{
+				if (!detail.ctrlblk)
+					requery.delete(detail)
+			});
 		}
 
 		dirty = [...requery];
 
 		for (let i = 0; i < dirty.length; i++)
 		{
-			if (dirty[i].isClean())	await dirty[i].clear(true);
-			else await dirty[i].executeQuery(dirty[i].startNewQueryChain());
+			if (!dirty[i].ctrlblk)
+				await dirty[i].executeQuery(dirty[i].startNewQueryChain());
 		}
 
 		return(true);
@@ -149,7 +175,7 @@ export class Form
 
 		for (let i = 0; i < blocks.length; i++)
 		{
-			blocks[i].setClean();
+			blocks[i].dirty = false;
 			blocks[i].wrapper.clear(false);
 		}
 	}
@@ -362,7 +388,7 @@ export class Form
 
 		await this.enterQueryMode(block);
 
-		let inst:FieldInstance = this.view.instance;
+		let inst:FieldInstance = this.view.current;
 		inst = block.view.getQBEInstance(inst);
 
 		if (inst) inst.focus();

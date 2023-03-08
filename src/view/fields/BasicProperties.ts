@@ -36,7 +36,6 @@ export interface Style
 
 export class BasicProperties
 {
-	protected row$:number = -1;
 	protected tag$:string = null;
 	protected styles$:Style[] = [];
 	protected classes$:string[] = [];
@@ -59,12 +58,6 @@ export class BasicProperties
 	public get tag() : string
 	{
 		return(this.tag$);
-	}
-
-	public get row() : number
-	{
-		if (this.row$ < 0) return(-1);
-		else 					 return(this.row$);
 	}
 
 	public set tag(tag:string)
@@ -177,6 +170,19 @@ export class BasicProperties
 	public get styleElements() : Style[]
 	{
 		return(this.styles$);
+	}
+
+	public getStyle(style:string) : string
+	{
+		style = style?.toLowerCase();
+
+		for (let i = 0; i < this.styles$.length; i++)
+		{
+			if (this.styles$[i].style == style)
+				return(this.styles$[i].value);
+		}
+
+		return(null);
 	}
 
 	public getStyles() : Style[]
@@ -360,6 +366,11 @@ export class BasicProperties
 	{
 		this.attribs$ = attrs;
 		return(this);
+	}
+
+	public hasAttribute(attr:string) : boolean
+	{
+		return(this.attribs$.has(attr?.toLowerCase()));
 	}
 
 	public getAttribute(attr:string) : string

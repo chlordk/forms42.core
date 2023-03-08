@@ -20,12 +20,12 @@
 */
 
 import { Form } from "./Form.js";
-import { Record } from "./Record.js";
 import { Filters } from "./filters/Filters.js";
 import { Filter } from "./interfaces/Filter.js";
 import { Alert } from "../application/Alert.js";
 import { SQLRest } from "../database/SQLRest.js";
 import { SubQuery } from "./filters/SubQuery.js";
+import { Record, RecordState } from "./Record.js";
 import { Relation } from "./relations/Relation.js";
 import { SQLSource } from "../database/SQLSource.js";
 import { QueryByExample } from "./QueryByExample.js";
@@ -50,7 +50,6 @@ export class Block
 	private form$:Form = null;
 	private name$:string = null;
 	private record$:number = -1;
-	private clean$:boolean = true;
 	private view$:ViewBlock = null;
 	private ctrlblk$:boolean = false;
 	private source$:DataSource = null;
@@ -153,10 +152,18 @@ export class Block
 		return(this.pubblk$.deleteallowed);
 	}
 
+	public set dirty(flag:boolean)
+	{
+		this.wrapper.dirty = flag;
+	}
+
+	public get dirty() : boolean
+	{
+		return(this.wrapper?.dirty);
+	}
+
 	public async clear(flush:boolean) : Promise<boolean>
 	{
-		this.clean$ = true;
-
 		if (!await this.wrapper.clear(flush))
 			return(false);
 
@@ -359,13 +366,8 @@ export class Block
 
 		if (success)
 		{
-			success = await this.wrapper.modified(record,false);
-
-			if (success)
-			{
-				if (this.querymode) this.setFilter(field);
-				else success = await this.form.queryFieldDetails(this.name,field);
-			}
+			if (this.querymode) this.setFilter(field);
+			else success = await this.form.queryFieldDetails(this.name,field);
 		}
 
 		return(success);
@@ -420,11 +422,6 @@ export class Block
 		return(this.wrapper.setValue(this.record,field,value));
 	}
 
-	public setDirty() : void
-	{
-		this.wrapper.dirty = true;
-	}
-
 	public locked(record?:Record) : boolean
 	{
 		if (this.querymode) return(true);
@@ -470,7 +467,6 @@ export class Block
 		if (!this.checkEventTransaction(EventType.PreInsert))
 			return(false);
 
-		this.form.view.blur(true);
 		let record:Record = this.wrapper.create(this.record,before);
 
 		if (record != null)
@@ -480,6 +476,9 @@ export class Block
 				before = true;
 				this.view.openrow();
 			}
+
+			this.form.view.blur(true);
+			this.form.view.current = null;
 
 			let success:boolean = true;
 			this.scroll(0,this.view.row);
@@ -546,24 +545,14 @@ export class Block
 		return(true);
 	}
 
-	public isClean() : boolean
-	{
-		return(this.clean$);
-	}
-
-	public isDirty() : boolean
-	{
-		return(this.wrapper?.dirty);
-	}
-
 	public getDirtyCount() : number
 	{
 		return(this.wrapper.getDirtyCount());
 	}
 
-	public setClean() : void
+	public getPendingCount() : number
 	{
-		this.wrapper.dirty = false;
+		return(this.wrapper.getPendingCount());
 	}
 
 	public async undo() : Promise<boolean>
@@ -610,7 +599,6 @@ export class Block
 
 	public async enterQuery() : Promise<boolean>
 	{
-		this.clean$ = true;
 		this.view.current = null;
 
 		if (!await this.wrapper.clear(true))
@@ -631,7 +619,6 @@ export class Block
 
 	public async executeQuery(qryid?:object) : Promise<boolean>
 	{
-		this.clean$ = false;
 		let runid:object = null;
 		this.view.current = null;
 
@@ -877,6 +864,9 @@ export class Block
 			if (master.empty)
 				return(false);
 
+			if (master.getRecord().state == RecordState.Delete)
+				return(false);
+
 			for (let i = 0; i < link.master.fields.length; i++)
 			{
 				let mfld:string = link.master.fields[i];
@@ -887,6 +877,12 @@ export class Block
 				if (value != null)
 				{
 					let flt:Filter = Filters.Equals(dfld);
+					flt.constraint = master.getValue(mfld);
+					this.getMasterBlockFilter(master,true).and(flt,dfld);
+				}
+				else
+				{
+					let flt:Filter = Filters.Null(dfld);
 					flt.constraint = master.getValue(mfld);
 					this.getMasterBlockFilter(master,true).and(flt,dfld);
 				}

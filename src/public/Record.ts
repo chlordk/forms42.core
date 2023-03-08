@@ -44,6 +44,26 @@ export class Record
 		return(this.rec$.state);
 	}
 
+	public get inserted() : boolean
+	{
+		return(this.rec$.inserted);
+	}
+
+	public get updated() : boolean
+	{
+		return(this.rec$.updated);
+	}
+
+	public get deleted() : boolean
+	{
+		return(this.rec$.deleted);
+	}
+
+	public get synchronized() : boolean
+	{
+		return(this.rec$.synched);
+	}
+
 	public get response() : any
 	{
 		return(this.rec$.response);
@@ -144,8 +164,65 @@ export class Record
 		}
 	}
 
+	public getStyle(field:string, style:string) : string
+	{
+		return(this.getProperties(field).getStyle(style));
+	}
+
+	public setStyle(field:string, style:string, value:any) : void
+	{
+		let props:FieldProperties = this.getProperties(field);
+		if (props) this.setProperties(props.setStyle(style,value),field);
+	}
+
+	public removeStyle(field:string, style:string) : void
+	{
+		let props:FieldProperties = this.getProperties(field);
+		if (props) this.setProperties(props.removeStyle(style),field);
+	}
+
+	public hasClass(field:string, clazz:string) : boolean
+	{
+		return(this.getProperties(field).hasClass(clazz));
+	}
+
+	public setClass(field:string, clazz:string) : void
+	{
+		let props:FieldProperties = this.getProperties(field);
+		if (props) this.setProperties(props.setClass(clazz),field);
+	}
+
+	public removeClass(field:string, clazz:string) : void
+	{
+		let props:FieldProperties = this.getProperties(field);
+		if (props) this.setProperties(props.removeClass(clazz),field);
+	}
+
+	public hasAttribute(field:string, attr:string) : boolean
+	{
+		return(this.getProperties(field).hasAttribute(attr));
+	}
+
+	public getAttribute(field:string, attr:string) : string
+	{
+		return(this.getProperties(field).getAttribute(attr));
+	}
+
+	public setAttribute(field:string, attr:string, value?:any) : void
+	{
+		let props:FieldProperties = this.getProperties(field);
+		if (props) this.setProperties(props.setAttribute(attr,value),field);
+	}
+
+	public removeAttribute(field:string, attr:string) : void
+	{
+		let props:FieldProperties = this.getProperties(field);
+		if (props) this.setProperties(props.removeAttribute(attr),field);
+	}
+
 	public getProperties(field?:string, clazz?:string) : FieldProperties
 	{
+		field = field?.toLowerCase();
 		let blk:ModelBlock = this.rec$.block;
 		return(new FieldProperties(blk.view.getRecordProperties(this.rec$,field,clazz)));
 	}
@@ -164,5 +241,10 @@ export class Record
 		clazz = clazz?.toLowerCase();
 		let blk:ModelBlock = this.rec$.block;
 		blk.view.setRecordProperties(this.rec$,field,clazz,null);
+	}
+
+	public toString() : string
+	{
+		return(this.rec$.toString());
 	}
 }

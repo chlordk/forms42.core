@@ -75,7 +75,8 @@ export class MemoryTable implements DataSource
 
 		records.forEach((rec) =>
 		{
-			this.records$.push(new Record(this,rec));
+			let record:Record = new Record(this,rec);
+			this.records$.push(record);
 		});
 	}
 
@@ -87,8 +88,12 @@ export class MemoryTable implements DataSource
 	public setData(data:any[][]) : void
 	{
 		this.records$ = [];
-		data.forEach((row) =>
-		{this.records$.push(new Record(this,row));})
+
+		data.forEach((rec) =>
+		{
+			let record:Record = new Record(this,rec);
+			this.records$.push(record);
+		})
 	}
 
 	public clone(columns?:string|string[]) : MemoryTable
@@ -214,17 +219,17 @@ export class MemoryTable implements DataSource
 			{
 				case RecordState.New:
 
-				case RecordState.Inserted:
+				case RecordState.Insert:
 
 					this.delete(this.dirty$[i]);
-					this.dirty$[i].state = RecordState.Deleted;
+					this.dirty$[i].state = RecordState.Delete;
 					break;
 
-				case RecordState.Updated:
+				case RecordState.Update:
 					this.dirty$[i].state = RecordState.Consistent;
 					break;
 
-				case RecordState.Deleted:
+				case RecordState.Delete:
 					this.dirty$[i].state = RecordState.Consistent;
 					break;
 			}
@@ -239,20 +244,20 @@ export class MemoryTable implements DataSource
 
 		this.dirty$.forEach((rec) =>
 		{
-			if (rec.state == RecordState.Inserted)
+			if (rec.state == RecordState.Insert)
 			{
 				processed.push(rec);
 				this.records$.push(rec);
 				rec.response = {status: "inserted"};
 			}
 
-			if (rec.state == RecordState.Updated)
+			if (rec.state == RecordState.Update)
 			{
 				processed.push(rec);
 				rec.response = {status: "updated"};
 			}
 
-			if (rec.state == RecordState.Deleted)
+			if (rec.state == RecordState.Delete)
 			{
 				processed.push(rec);
 				rec.response = {status: "deleted"};

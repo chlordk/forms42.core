@@ -100,28 +100,29 @@ export class SQLRestBuilder
 		return(parsed);
 	}
 
-	public static finish(sql:string, filter:FilterStructure, bindings:BindValue[], order:string) : SQLRest
+	public static finish(sql:string, where:boolean, filter:FilterStructure, bindings:BindValue[], order:string) : SQLRest
 	{
 		let parsed:SQLRest = new SQLRest();
+		let first:string = where ? " where " : " and ";
 
 		parsed.stmt = sql;
 
 		if (filter && !filter.empty)
-			parsed.stmt += " and " + filter.asSQL();
+			parsed.stmt += first + filter.asSQL();
 
 		if (order)
 			parsed.stmt += " order by "+order;
 
 		parsed.bindvalues = filter?.getBindValues();
 
-		if (bindings) 
+		if (bindings)
 		{
-			if (!parsed.bindvalues) 
+			if (!parsed.bindvalues)
 				parsed.bindvalues = [];
-				
+
 			parsed.bindvalues.push(...bindings);
 		}
-		
+
 		return(parsed);
 	}
 

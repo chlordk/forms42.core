@@ -40,11 +40,12 @@ export { Tag as CustomTag } from './src/application/tags/Tag.js';
 export { Filters } from './src/model/filters/Filters.js';
 export { Filter } from './src/model/interfaces/Filter.js';
 export { FilterStructure } from './src/model/FilterStructure.js';
+export { CustomFilter } from './src/model/filters/CustomFilter.js';
 
 export { Like } from './src/model/filters/Like.js';
 export { ILike } from './src/model/filters/ILike.js';
+export { AnyOf } from './src/model/filters/AnyOf.js';
 export { Equals } from './src/model/filters/Equals.js';
-export { AnyOff } from './src/model/filters/AnyOff.js';
 export { Between } from './src/model/filters/Between.js';
 export { Contains } from './src/model/filters/Contains.js';
 export { LessThan } from './src/model/filters/LessThan.js';
