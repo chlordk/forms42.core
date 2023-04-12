@@ -28,7 +28,6 @@ import { KeyMap } from '../control/events/KeyMap.js';
 import { Framework } from '../application/Framework.js';
 import { ListOfValues } from '../public/ListOfValues.js';
 import { EventType } from '../control/events/EventType.js';
-import { FormsModule } from '../application/FormsModule.js';
 import { FormBacking } from '../application/FormBacking.js';
 import { DateConstraint } from '../public/DateConstraint.js';
 import { DataSource } from '../model/interfaces/DataSource.js';
@@ -270,21 +269,12 @@ export class Form implements CanvasComponent
 	public async showform(form:Class<Form>|string, parameters?:Map<any,any>, container?:HTMLElement) : Promise<Form>
 	{
 		if (!await this.validate()) return(null);
-		let cform:Form = await FormsModule.get().showform(form,parameters,container);
-		return(cform);
+		return(FormBacking.showform(form,null,parameters,container));
 	}
 
 	public async callform(form:Class<Form>|string, parameters?:Map<any,any>, container?:HTMLElement) : Promise<Form>
 	{
-		this.canvas.block();
-
-		FormBacking.getBacking(this).hasModalChild = true;
-		let cform:Form = await FormsModule.get().showform(form,parameters,container);
-
-		if (cform) FormBacking.getBacking(cform).parent = this;
-		else       FormBacking.getBacking(this).hasModalChild = false;
-
-		return(cform);
+		return(FormBacking.showform(form,this,parameters,container));
 	}
 
 	public reIndexFieldOrder() : void
@@ -355,18 +345,17 @@ export class Form implements CanvasComponent
 			return(false);
 
 		this.canvas.close();
-		let parent:Form = FormBacking.getBacking(this).parent;
+
+		let backing:FormBacking = FormBacking.getBacking(this);
+		let parent:Form = backing.parent;
 
 		if (parent != null)
 		{
-			parent.canvas.unblock();
-
-			parent.focus();
-
-			if (FormBacking.getBacking(parent))
-				FormBacking.getBacking(parent).hasModalChild = false;
+			parent.canvas?.unblock(); parent.focus();
+			if (backing) backing.hasModalChild = false;
 		}
 
+		vform.setURL(true);
 		FormBacking.removeBacking(this);
 		let success:boolean = await FormEvents.raise(FormEvent.FormEvent(EventType.PostCloseForm,this));
 

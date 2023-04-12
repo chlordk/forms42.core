@@ -53,10 +53,14 @@ export class QueryEditor extends Form
 
 		this.addEventListener(this.navigate,
 		[
+			{type: EventType.Key, key: KeyMap.pageup},
+			{type: EventType.Key, key: KeyMap.pagedown},
 			{type: EventType.Key, key: KeyMap.nextfield},
 			{type: EventType.Key, key: KeyMap.prevfield},
 			{type: EventType.Key, key: KeyMap.nextblock},
-			{type: EventType.Key, key: KeyMap.prevblock}
+			{type: EventType.Key, key: KeyMap.prevblock},
+			{type: EventType.Key, key: KeyMap.prevrecord},
+			{type: EventType.Key, key: KeyMap.nextrecord},
 		]);
 	}
 
@@ -193,26 +197,41 @@ export class QueryEditor extends Form
 
 	private async navigate(event:FormEvent) : Promise<boolean>
 	{
-		if (this.type == "..")
+		if (event.block == this.options.name)
 		{
-			if (event.block == "options")
+			let next:boolean = false;
+
+			if (event.key == KeyMap.pagedown) next = true;
+			if (event.key == KeyMap.nextrecord) next = true;
+
+			if (next)
 			{
 				this.values.goField("value");
 				return(false);
 			}
-			else
+		}
+
+		else
+
+		{
+			let prev:boolean = false;
+
+			if (event.key == KeyMap.pageup) prev = true;
+
+			if (event.key == KeyMap.prevrecord)
 			{
-				let goopt:boolean = false;
+				if (this.type != ".." || this.values.record == 0)
+					prev = true;
+			}
 
-				if (event.key == KeyMap.prevfield && this.values.record == 0) goopt = true;
-				if (event.key == KeyMap.nextblock || event.key == KeyMap.prevblock) goopt = true;
+			if (prev)
+			{
+				this.options.goField("options");
+				return(false);
+			}
 
-				if (goopt)
-				{
-					this.options.goField("options");
-					return(false);
-				}
-
+			if (this.type == "..")
+			{
 				if (event.key == KeyMap.prevfield)
 				{
 					this.values.prevrecord();
@@ -233,11 +252,6 @@ export class QueryEditor extends Form
 					return(false);
 				}
 			}
-		}
-		else
-		{
-			if (event.key == KeyMap.nextblock || event.key == KeyMap.prevblock)
-				return(false);
 		}
 
 		return(true);

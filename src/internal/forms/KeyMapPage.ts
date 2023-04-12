@@ -19,46 +19,29 @@
   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-import { Filter } from './Filter.js';
-import { Record } from '../Record.js';
-import { FilterStructure } from '../FilterStructure.js';
+import { KeyMap } from "../../control/events/KeyMap.js";
 
-export enum LockMode
+
+export class KeyMapPage
 {
-	None,
-	Optimistic,
-	Pessimistic
-}
+  private static ul:HTMLElement = null;
 
-export interface DataSource
-{
-	name:string;
-	sorting:string;
-	columns:string[];
-	arrayfecth:number;
+  public static show() : HTMLElement
+  {
+   this.ul = document.createElement("ul");
+   this.ul.classList.add("infommationKeyMap");
+    KeyMap.list().forEach(([name,desc]) => {
+     let li:HTMLElement = document.createElement("li");
+      li.innerHTML = "<label class='name'>" + name + "</label><label class='desc'>" + desc + "</label>";
+      this.ul.appendChild(li);
+    });
 
-	rowlocking:LockMode;
-	queryallowed:boolean;
-	insertallowed:boolean;
-	updateallowed:boolean;
-	deleteallowed:boolean;
-	transactional:boolean;
+    return this.ul;
+  }
 
-	clear() : void;
-	clone() : DataSource;
-	undo() : Promise<Record[]>;
-	fetch() : Promise<Record[]>;
-	flush() : Promise<Record[]>;
-	closeCursor() : Promise<boolean>;
-	lock(record:Record) : Promise<boolean>;
-	insert(record:Record) : Promise<boolean>;
-	update(record:Record) : Promise<boolean>;
-	delete(record:Record) : Promise<boolean>;
-	refresh(record:Record) : Promise<boolean>;
-	query(filters?:FilterStructure) : Promise<boolean>;
 
-	getFilters() : FilterStructure;
-	addColumns(columns:string|string[]) : DataSource;
-	removeColumns(columns:string|string[]) : DataSource;
-	addFilter(filter:Filter|FilterStructure) : DataSource;
+  public static hide()
+  {
+    this.ul.remove();
+  }
 }

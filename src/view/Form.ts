@@ -253,16 +253,17 @@ export class Form implements EventListenerObject
 		{
 			if (!await preform.validate())
 			{
-				FormBacking.setCurrentForm(null);
+				preform.focus();
 				return(false);
 			}
 
 			if (!await this.leaveForm(preform))
 			{
-				FormBacking.setCurrentForm(null);
+				preform.focus();
 				return(false);
 			}
 
+			this.setURL();
 			this.canvas.activate();
 			FormBacking.setCurrentForm(this);
 		}
@@ -287,20 +288,21 @@ export class Form implements EventListenerObject
 			Go to form
 		 **********************************************************************/
 
-		// Check if 'I' have been closed
 		let backing:FormBacking = FormBacking.getBacking(this.parent);
 
-		if (backing == null)
-		{
-			Alert.fatal("Cannot find backing bean for '"+this.name+"'. Current form '"+Form.current()?.name+"'","Enter Form");
-			return(false);
-		}
+		// Check if 'I' have been closed
+		if (backing == null) return(false);
 
 		if (preform && this != preform)
 		{
 			// When modal call, allow leaving former form in any state
 
-			if (!backing.wasCalled)
+			let modal:boolean = false;
+
+			if (backing.wasCalled && preform.parent == backing.parent)
+				modal = true;
+
+			if (!modal)
 			{
 				preform = this;
 
@@ -309,14 +311,7 @@ export class Form implements EventListenerObject
 					inst.blur(true);
 					preform = Form.current();
 
-					if (!await preform.validate())
-					{
-						FormBacking.setCurrentForm(null);
-						preform.focus();
-						return(false);
-					}
-
-					if (!await this.leaveForm(preform))
+					if (!await this.checkLeave(preform))
 					{
 						FormBacking.setCurrentForm(null);
 						preform.focus();
@@ -427,7 +422,6 @@ export class Form implements EventListenerObject
 		FormBacking.setCurrentForm(this);
 		nxtblock.setCurrentRow(inst.row,true);
 
-
 		let onrec:boolean = true;
 		if (preform) this.parent.canvas.activate();
 		let rec:Record = nxtblock.model.getRecord();
@@ -447,6 +441,18 @@ export class Form implements EventListenerObject
 
 			await this.onRecord(inst.field.block);
 		}
+
+		this.setURL();
+		return(true);
+	}
+
+	public async checkLeave(curr:Form) : Promise<boolean>
+	{
+		if (!await curr.validate())
+			return(false);
+
+		if (!await this.leaveForm(curr))
+			return(false);
 
 		return(true);
 	}
@@ -1123,18 +1129,27 @@ export class Form implements EventListenerObject
 		}
 	}
 
-	private setURL() : void
+	public setURL(close?:boolean) : void
 	{
 		let location:Location = window.location;
 		let params:URLSearchParams = new URLSearchParams(location.search);
 		let path:string = location.protocol + '//' + location.host + location.pathname;
+
+		if (!(this.parent instanceof InterfaceForm))
+			close = true;
+
+		if (close)
+		{
+			window.history.replaceState('','',path);
+			return;
+		}
 
 		let map:string = FormsModule.getFormPath(this.parent.name);
 
 		if (map != null && this.parent.navigable)
 		{
 			params.set("form",map)
-			window.history.replaceState('', '',path+"?"+params);
+			window.history.replaceState('','',path+"?"+params);
 		}
 	}
 
