@@ -96,23 +96,23 @@ export class Framework
 
 		if (typeof element === 'string')
 		{
-			let template:HTMLDivElement = document.createElement('div');
+			let template:HTMLElement = document.createElement('div');
 			template.innerHTML = element;
 			element = template;
+
+			if (element.childNodes.length == 1)
+				element = element.childNodes.item(0) as HTMLElement;
 		}
 
 		for(let i=0; i < element.childNodes.length; i++)
 		{
 			let node:Node = element.childNodes.item(i);
 			if (node.nodeType == Node.TEXT_NODE && node.textContent.trim() == "")
-			remove.unshift(i);
+				remove.unshift(i);
 		}
 
 		for(let i=0; i < remove.length; i++)
 			element.childNodes.item(remove[i]).remove();
-
-		if (element.childNodes.length == 1)
-			element = element.childNodes.item(0) as HTMLElement;
 
 		return(element);
 	}
@@ -179,6 +179,9 @@ export class Framework
 		if (!Properties.ParseEvents) return;
 		let prefix:string = Properties.AttributePrefix;
 
+		if (!element.getAttributeNames)
+			return;
+
 		let attrnames:string[] = element.getAttributeNames();
 
 		for (let an = 0; an < attrnames.length; an++)
@@ -236,6 +239,9 @@ export class Framework
 		let attr:string = null;
 		let prefix:string = Properties.AttributePrefix;
 		let name:string = element?.nodeName.toLowerCase();
+
+		if (!element.getAttributeNames)
+			return(null);
 
 		if (Properties.ParseTags)
 		{
