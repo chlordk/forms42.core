@@ -113,11 +113,12 @@ export class Block
 		this.current?.blur(ignore);
 	}
 
-	public focus(ignore?:boolean) : void
+	public async focus(ignore?:boolean) : Promise<boolean>
 	{
-		if (this.current)
+		if (this.curinst$)
 		{
-			this.current.focus(ignore);
+			this.curinst$.focus(ignore);
+			return(true);
 		}
 		else
 		{
@@ -137,9 +138,26 @@ export class Block
 
 				if (cf + rf > 0)
 					console.log("No available fields in "+this.name+" in state "+RecordState[state]);
+
+				return(false);
 			}
 
-			inst?.focus();
+			if (this.curinst$)
+			{
+				if (!await this.curinst$.field.validate(this.current))
+					return(false);
+
+				if (!await this.form.leave(this.curinst$))
+					return(false);
+
+				this.curinst$.blur(true);
+			}
+
+			if (!await this.form.enter(inst))
+				return(false);
+
+			inst?.focus(true);
+			return(true);
 		}
 	}
 
@@ -157,7 +175,7 @@ export class Block
 		this.getCurrentFields(field).forEach((fld) => fld.setInstanceValidity(flag));
 	}
 
-	public goField(field:string, clazz?:string) : void
+	public async goField(field:string, clazz?:string) : Promise<boolean>
 	{
 		field = field?.toLowerCase();
 		clazz = clazz?.toLowerCase();
@@ -184,10 +202,27 @@ export class Block
 			if (rf == null) rf = 0;
 
 			if (cf + rf > 0)
-				console.log("No available fields named '"+field+"' in block '"+this.name+"' in state "+RecordState[state])
+				console.log("No available fields named '"+field+"' in block '"+this.name+"' in state "+RecordState[state]);
+
+			return(false);
 		}
 
-		inst?.focus();
+		if (this.current)
+		{
+			if (!await this.current.field.validate(this.current))
+				return(false);
+
+			if (!await this.form.leave(this.current))
+				return(false);
+
+			this.current.blur(true);
+		}
+
+		if (!await this.form.enter(inst))
+			return(false);
+
+		inst.focus();
+		return(true);
 	}
 
 	public empty(rownum?:number) : boolean
@@ -819,19 +854,25 @@ export class Block
 		}
 	}
 
-	public refresh(record:Record) : void
+	public async refresh(record:Record) : Promise<boolean>
 	{
 		let row:Row = this.displayed(record);
-
 		if (row == null) return;
+
+		row.validated = true;
 		this.display(row.rownum,record);
 
 		if (row.rownum == this.row)
 		{
 			this.displaycurrent();
-			this.model.queryDetails(true);
+
+			if (!await this.model.queryDetails(true))
+				return(false);
+
 			this.setIndicators(null,this.row);
 		}
+
+		return(true);
 	}
 
 	public swapInstances(inst1:FieldInstance, inst2:FieldInstance) : void

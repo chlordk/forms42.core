@@ -138,7 +138,7 @@ export class Form
 			{
 				dirty.push(blocks[i]);
 
-				if (!await blocks[i].undo())
+				if (!await blocks[i].undo(false))
 					return(false);
 			}
 		}
@@ -164,7 +164,7 @@ export class Form
 		{
 			if (!dirty[i].ctrlblk)
 			{
-				if (!dirty[i].queried) dirty[i].clear(false);
+				if (!dirty[i].queried) await dirty[i].clear(false);
 				else await dirty[i].executeQuery(dirty[i].startNewQueryChain());
 			}
 		}
@@ -263,7 +263,7 @@ export class Form
 
 		if (running)
 		{
-			let source:string = this.name+(block ? "."+block.name : "")
+			let source:string = this.name+(block ? "."+block.name+"."+block.view.current : "");
 			Alert.fatal("Cannot start transaction "+EventType[event]+" while running "+EventType[running]+" on "+source,"Transaction Violation");
 			return(false);
 		}

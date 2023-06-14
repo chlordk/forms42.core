@@ -38,6 +38,7 @@ import { Relation } from '../model/relations/Relation.js';
 import { EventType } from '../control/events/EventType.js';
 import { Form as InternalForm } from '../internal/Form.js';
 import { DateConstraint } from '../public/DateConstraint.js';
+import { EventStack } from '../control/events/EventStack.js';
 import { ComponentFactory } from './interfaces/ComponentFactory.js';
 import { FormEvent, FormEvents } from '../control/events/FormEvents.js';
 
@@ -75,6 +76,9 @@ export class FormBacking
 				return(null);
 		}
 
+		// Wait for events
+		await EventStack.wait();
+
 		if (container == null)
 			container = FormsModule.get().getRootElement();
 
@@ -106,7 +110,7 @@ export class FormBacking
 		await mform.wait4EventTransaction(EventType.PostViewInit,null);
 
 		if (await FormEvents.raise(FormEvent.FormEvent(EventType.PostViewInit,instance)))
-			setTimeout(() => {instance.focus()},10);
+			instance.focus();
 
 		return(instance);
 	}

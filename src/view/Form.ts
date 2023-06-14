@@ -35,6 +35,7 @@ import { FieldInstance } from './fields/FieldInstance.js';
 import { EventType } from '../control/events/EventType.js';
 import { FormBacking } from '../application/FormBacking.js';
 import { FormsModule } from '../application/FormsModule.js';
+import { EventStack } from '../control/events/EventStack.js';
 import { DateConstraint } from '../public/DateConstraint.js';
 import { Canvas } from '../application/interfaces/Canvas.js';
 import { FieldProperties } from '../public/FieldProperties.js';
@@ -63,6 +64,7 @@ export class Form implements EventListenerObject
 	private modfrm$:ModelForm = null;
 	private parent$:InterfaceForm = null;
 	private curinst$:FieldInstance = null;
+	private lastinst$:FieldInstance = null;
 	private blocks$:Map<string,Block> = new Map<string,Block>();
 	private indicators:Map<string,RowIndicator[]> = new Map<string,RowIndicator[]>();
 	private fltindicators:Map<string,FilterIndicator[]> = new Map<string,FilterIndicator[]>();
@@ -193,18 +195,15 @@ export class Form implements EventListenerObject
 		this.curinst$?.blur(ignore);
 	}
 
-	public focus() : void
+	public async focus() : Promise<boolean>
 	{
-		if (this.curinst$)
-		{
-			this.curinst$?.focus();
-			return;
-		}
-		else if (this.blocks$.size > 0)
-		{
-			this.blocks$.values().next().value.focus();
-			return;
-		}
+		let elem:HTMLElement = null;
+
+		if (this.curinst$) elem = this.curinst$.element;
+		else if (this.blocks$.size > 0) elem = this.blocks$.values().next().value.current.element;
+
+		if (!elem) return(false);
+		elem.focus();
 	}
 
 	public dragfields(header:HTMLElement) : void
@@ -379,7 +378,7 @@ export class Form implements EventListenerObject
 			Enter this forms current block and record
 		 **********************************************************************/
 
-		if (nxtblock != preblock)
+		if (preblock != null && nxtblock != preblock)
 		{
 			if (!await this.enterBlock(nxtblock,recoffset))
 			{
@@ -417,8 +416,6 @@ export class Form implements EventListenerObject
 			}
 		}
 
-		this.curinst$ = inst;
-		nxtblock.current = inst;
 		FormBacking.setCurrentForm(this);
 		nxtblock.setCurrentRow(inst.row,true);
 
@@ -478,7 +475,7 @@ export class Form implements EventListenerObject
 
 	public async enterBlock(block:Block, offset:number) : Promise<boolean>
 	{
-		if (!await this.setEventTransaction(EventType.PreForm,block,offset)) return(false);
+		if (!await this.setEventTransaction(EventType.PreBlock,block,offset)) return(false);
 		let success:boolean = await this.fireBlockEvent(EventType.PreBlock,block.name);
 		block.model.endEventTransaction(EventType.PreBlock,success);
 		return(success);
@@ -508,6 +505,12 @@ export class Form implements EventListenerObject
 
 	public async enterField(inst:FieldInstance, offset:number) : Promise<boolean>
 	{
+		if (inst == this.curinst$)
+			return(true);
+
+		this.curinst$ = inst;
+		this.lastinst$ = null;
+
 		if (!await this.setEventTransaction(EventType.PreField,inst.field.block,offset)) return(false);
 		let success:boolean = await this.fireFieldEvent(EventType.PreField,inst);
 		inst.field.block.model.endEventTransaction(EventType.PreField,success);
@@ -538,15 +541,22 @@ export class Form implements EventListenerObject
 
 	public async leaveField(inst:FieldInstance) : Promise<boolean>
 	{
+		if (inst == this.lastinst$)
+			return(true);
+
+		this.lastinst$ = inst;
 		if (!await inst.field.block.model.wait4EventTransaction(EventType.PostField)) return(false);
 		let success:boolean = await this.fireFieldEvent(EventType.PostField,inst);
 		return(success);
 	}
 
-	public async sendkey(key:KeyMap, block?:string, field?:string, clazz?:string) : Promise<boolean>
+	public sendkey(key:KeyMap, block?:string, field?:string, clazz?:string) : boolean
 	{
 		block = block?.toLowerCase();
 		field = field?.toLowerCase();
+
+		let brwevent:BrowserEvent = BrowserEvent.get().clone();
+		brwevent.setKeyEvent(key);
 
 		if (this.curinst$)
 		{
@@ -562,12 +572,13 @@ export class Form implements EventListenerObject
 
 		if (this.curinst$)
 		{
+			// If field matches current field instance, then use that
 			if (field == this.curinst$.field.name && block == this.curinst$.field.block.name)
 			{
 				if (!clazz || (clazz && !this.curinst$.properties.hasClass(clazz)))
 				{
-					this.curinst$.focus();
-					return(this.keyhandler(key,this.curinst$));
+					EventStack.send(this.curinst$,brwevent);
+					return(true);
 				}
 			}
 		}
@@ -581,7 +592,8 @@ export class Form implements EventListenerObject
 			return(false);
 		}
 
-		return(this.keyhandler(key,match[0]));
+		EventStack.send(match[0],brwevent);
+		return(true);
 	}
 
 	public async keyhandler(key:KeyMap, inst?:FieldInstance) : Promise<boolean>
@@ -720,6 +732,8 @@ export class Form implements EventListenerObject
 				inst.blur(true);
 				success = await this.model.executeQuery(inst.field.block.model);
 				inst.focus(true);
+
+				inst.ignore = "blur";
 				return(success);
 			}
 

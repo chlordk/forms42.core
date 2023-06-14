@@ -393,6 +393,9 @@ export class Block
 		if (record == null)
 			return(true);
 
+		if (this.view.displayed(record)?.validated)
+			return(true);
+
 		if (!await this.setEventTransaction(EventType.WhenValidateRecord,record)) return(false);
 		let success:boolean = await this.fire(EventType.WhenValidateRecord);
 		this.endEventTransaction(EventType.WhenValidateRecord,success);
@@ -496,7 +499,7 @@ export class Block
 			let success:boolean = true;
 			this.scroll(0,this.view.row);
 
-			if (before)	this.view.refresh(record);
+			if (before)	await this.view.refresh(record);
 			else success = await this.view.nextrecord();
 
 			if (success)
@@ -545,14 +548,16 @@ export class Block
 			}
 
 			this.scroll(0,this.view.row);
-			this.view.refresh(this.getRecord());
+			await this.view.refresh(this.getRecord());
 
 			if (!empty) this.view.current = inst;
 			else this.view.getPreviousInstance(inst)?.focus();
+
+			this.view.getRow(this.view.row).validated = true;
 		}
 		else
 		{
-			this.view.refresh(this.getRecord());
+			await this.view.refresh(this.getRecord());
 		}
 
 		return(true);
@@ -568,7 +573,7 @@ export class Block
 		return(this.wrapper.getPendingCount());
 	}
 
-	public async undo() : Promise<boolean>
+	public async undo(requery:boolean) : Promise<boolean>
 	{
 		if (this.ctrlblk)
 			return(true);
@@ -578,9 +583,13 @@ export class Block
 
 		let undo:Record[] = await this.wrapper?.undo();
 
-		for (let i = 0; i < undo.length; i++)
-			this.view.refresh(undo[i]);
+		if (requery)
+		{
+			for (let i = 0; i < undo.length; i++)
+				this.view.refresh(undo[i]);
+		}
 
+		this.view.validated = true;
 		return(true);
 	}
 
@@ -897,7 +906,7 @@ export class Block
 				}
 				else
 				{
-					let flt:Filter = Filters.Null(dfld);
+					let flt:Filter = Filters.IsNull(dfld);
 					flt.constraint = master.getValue(mfld);
 					this.getMasterBlockFilter(master,true).and(flt,dfld);
 				}
