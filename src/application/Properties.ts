@@ -64,7 +64,7 @@ export class Properties
 
 	public static DateDelimitors:string = "./-: ";
 	public static TimeFormat:string = "HH:mm:ss";
-	public static DateFormat:string = "DD-MM-YYYY";
+	public static DateFormat:string = "YYYY-MM-DD";
 
 	public static AttributePrefix:string = "$";
 	public static RequireAttributePrefix:boolean = false;
